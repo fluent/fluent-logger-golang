@@ -23,14 +23,6 @@ type Fluent struct {
 	conn net.Conn
 }
 
-func (f *Fluent) send(data []byte) (err error) {
-	if f.conn == nil {
-		f.Connect()
-	}
-	_, err = f.conn.Write(data)
-	return
-}
-
 // New creates a new Logger.
 func New(config Config) (f *Fluent) {
 	if config.FluentHost == "" {
@@ -52,18 +44,26 @@ func (f *Fluent) Connect() (err error) {
 }
 
 // Post writes the output for a logging event.
-func (f *Fluent) Post(tag, message string) {
-	timeNow := time.Now().Unix()
-	msg := []interface{}{tag, timeNow, message}
-	data, err := msgpack.Marshal(msg)
-	if err != nil {
-		fmt.Println(err)
-	}
-	f.send(data)
+func (f *Fluent) Post(tag string, message interface{}) {
+  timeNow := time.Now().Unix()
+  msg := []interface{}{tag, timeNow, message}
+  data, err := msgpack.Marshal(msg)
+  if err != nil {
+    fmt.Println(err)
+  }
+  f.send(data)
 }
 
 // Close closes the connection.
 func (f *Fluent) Close() (err error) {
 	f.conn.Close()
+	return
+}
+
+func (f *Fluent) send(data []byte) (err error) {
+	if f.conn == nil {
+		f.Connect()
+	}
+	_, err = f.conn.Write(data)
 	return
 }
