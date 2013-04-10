@@ -1,7 +1,7 @@
 package main
 
 import (
-  "../fluent"
+  "github.com/t-k/fluent-logger-golang"
   "fmt"
 )
 
