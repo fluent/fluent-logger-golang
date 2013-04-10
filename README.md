@@ -19,7 +19,7 @@ Install the package with `go get` and use `import` to include it in your project
 import "github.com/t-k/fluent-logger-golang"
 ```
 
-API docs: http://godoc.org/github.com/t-k/fluent-logger-golang
+GoDoc: http://godoc.org/github.com/t-k/fluent-logger-golang
 
 ##Example
 
@@ -46,7 +46,7 @@ func main() {
 ## Setting Config Values
 
 ```go
-f := fluent.New(gelf.Config{FluentPort: 80, FluentHost: "example.com"})
+f := fluent.New(fluent.Config{FluentPort: 80, FluentHost: "example.com"})
 ```
 
 ## Tests
