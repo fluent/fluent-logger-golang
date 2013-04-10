@@ -52,6 +52,9 @@ func (f *Fluent) Post(tag, message string) {
 }
 
 func (f *Fluent) Send(data []byte) (err error) {
+	if f.conn == nil {
+		f.Connect()
+	}
 	_, err = f.conn.Write(data)
 	return
 }
