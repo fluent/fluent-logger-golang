@@ -3,7 +3,7 @@ fluent-logger-golang
 
 [![Build Status](https://travis-ci.org/t-k/fluent-logger-golang.png?branch=master)](https://travis-ci.org/t-k/fluent-logger-golang)
 
-## A structured event logerr for Fluentd (Golang)
+## A structured event logger for Fluentd (Golang)
 
 ## How to install
 
