@@ -39,8 +39,10 @@ func main() {
   }
   defer logger.Close()
   tag := "myapp.access"
-  message := "testing"
-  logger.Post(tag, message)
+  var data = map[string]string{
+    "foo":  "bar",
+    "hoge": "hoge"}
+  logger.Post(tag, data)
 }
 ```
 ## Setting Config Values
