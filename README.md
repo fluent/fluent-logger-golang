@@ -19,6 +19,8 @@ Install the package with `go get` and use `import` to include it in your project
 import "github.com/t-k/fluent-logger-golang"
 ```
 
+API docs: http://godoc.org/github.com/t-k/fluent-logger-golang
+
 ##Example
 
 ```go
