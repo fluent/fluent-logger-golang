@@ -24,7 +24,7 @@ type Fluent struct {
 }
 
 // New creates a new Logger.
-func New(config Config) (f *Fluent) {
+func New(config Config) (f *Fluent, err error) {
 	if config.FluentHost == "" {
 		config.FluentHost = defaultHost
 	}
@@ -34,24 +34,19 @@ func New(config Config) (f *Fluent) {
 	f = &Fluent{
 		Config: config,
 	}
-	return
-}
-
-// Connect establishes a new connection using the specified transport.
-func (f *Fluent) Connect() (err error) {
-	f.conn, err = net.Dial("tcp", f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
+	err = f.connect()
 	return
 }
 
 // Post writes the output for a logging event.
 func (f *Fluent) Post(tag string, message interface{}) {
-  timeNow := time.Now().Unix()
-  msg := []interface{}{tag, timeNow, message}
-  data, err := msgpack.Marshal(msg)
-  if err != nil {
-    fmt.Println(err)
-  }
-  f.send(data)
+	timeNow := time.Now().Unix()
+	msg := []interface{}{tag, timeNow, message}
+	data, err := msgpack.Marshal(msg)
+	if err != nil {
+		fmt.Println(err)
+	}
+	f.send(data)
 }
 
 // Close closes the connection.
@@ -60,9 +55,15 @@ func (f *Fluent) Close() (err error) {
 	return
 }
 
+// Connect establishes a new connection using the specified transport.
+func (f *Fluent) connect() (err error) {
+	f.conn, err = net.Dial("tcp", f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
+	return
+}
+
 func (f *Fluent) send(data []byte) (err error) {
 	if f.conn == nil {
-		f.Connect()
+		f.connect()
 	}
 	_, err = f.conn.Write(data)
 	return

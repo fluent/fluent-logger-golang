@@ -6,8 +6,7 @@ import (
 )
 
 func main() {
-	logger := fluent.New(fluent.Config{FluentPort: 24224, FluentHost: "127.0.0.1"})
-	err := logger.Connect()
+	logger, err := fluent.New(fluent.Config{FluentPort: 24224, FluentHost: "127.0.0.1"})
 	if err != nil {
 		fmt.Println(err)
 	}

@@ -32,8 +32,7 @@ import (
 )
 
 func main() {
-  logger := fluent.New(fluent.Config{})
-  err := logger.Connect()
+  logger, err := fluent.New(fluent.Config{})
   if err != nil {
     fmt.Println(err)
   }
