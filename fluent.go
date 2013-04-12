@@ -58,8 +58,10 @@ func (f *Fluent) Post(tag string, message interface{}) {
 
 // Close closes the connection.
 func (f *Fluent) Close() (err error) {
-	f.conn.Close()
-	f.conn = nil
+	if f.conn != nil {
+	  f.conn.Close()
+	  f.conn = nil
+	}
 	return
 }
 
