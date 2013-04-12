@@ -1,8 +1,8 @@
 package fluent
 
 import (
-	"fmt"
 	"container/list"
+	"fmt"
 	msgpack "github.com/ugorji/go-msgpack"
 	"net"
 	"strconv"
@@ -10,20 +10,20 @@ import (
 )
 
 const (
-	defaultHost = "127.0.0.1"
-	defaultPort = 24224
-	defaultTimeout = 3*time.Second
+	defaultHost    = "127.0.0.1"
+	defaultPort    = 24224
+	defaultTimeout = 3 * time.Second
 )
 
 type Config struct {
-	FluentPort  int
-	FluentHost  string
-	Timeout time.Duration
+	FluentPort int
+	FluentHost string
+	Timeout    time.Duration
 }
 
 type Fluent struct {
 	Config
-	conn net.Conn
+	conn    net.Conn
 	pending list.List
 }
 
@@ -47,9 +47,6 @@ func New(config Config) (f *Fluent, err error) {
 
 // Post writes the output for a logging event.
 func (f *Fluent) Post(tag string, message interface{}) {
-	if f.pending.Len() > 0 {
-		_ = f.connect()
-	}
 	timeNow := time.Now().Unix()
 	msg := []interface{}{tag, timeNow, message}
 	data, err := msgpack.Marshal(msg)
@@ -62,6 +59,7 @@ func (f *Fluent) Post(tag string, message interface{}) {
 // Close closes the connection.
 func (f *Fluent) Close() (err error) {
 	f.conn.Close()
+	f.conn = nil
 	return
 }
 
@@ -77,14 +75,15 @@ func (f *Fluent) send(data []byte) (err error) {
 	}
 	if f.pending.Len() > 0 {
 		for e := f.pending.Front(); e != nil; e = e.Next() {
-      _, err = f.conn.Write(e.Value.([]byte))
+			_, err = f.conn.Write(e.Value.([]byte))
 		}
 	} else {
-	  _, err = f.conn.Write(data)
-  }
+		_, err = f.conn.Write(data)
+	}
 	if err != nil {
 		fmt.Println(err)
 		f.pending.PushBack(data)
+		f.Close()
 	} else {
 		f.pending.Init()
 	}
