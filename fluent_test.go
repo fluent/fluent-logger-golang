@@ -31,3 +31,16 @@ func Benchmark_PostWithShortMessage(b *testing.B) {
 		f.Post("tag", "Hello World")
 	}
 }
+
+func Benchmark_LogWithChunks(b *testing.B) {
+	b.StopTimer()
+	f, err := New(Config{})
+	if err != nil {
+		panic(err)
+	}
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		f.Post("tag", "sdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddf")
+	}
+}

@@ -1,7 +1,7 @@
 package fluent
 
 import (
-	"container/list"
+	// "container/list"
 	"fmt"
 	msgpack "github.com/ugorji/go-msgpack"
 	"net"
@@ -26,7 +26,7 @@ type Config struct {
 type Fluent struct {
 	Config
 	conn    net.Conn
-	pending list.List
+	pending []byte
 }
 
 // New creates a new Logger.
@@ -58,12 +58,15 @@ func (f *Fluent) Post(tag string, message interface{}) {
 	if dumperr != nil {
 		fmt.Println("Fluent: Can't convert to msgpack:", msg, dumperr)
 	} else {
-		err := f.send(data)
-		if err != nil && len(data) <= f.Config.BufferLimit {
-			f.pending.PushBack(data)
+		f.pending = append(f.pending, data...)
+		err := f.send()
+		if err != nil {
 			f.Close()
+			if len(data) > f.Config.BufferLimit {
+				f.pending = []byte{}
+			}
 		} else {
-			f.pending.Init()
+			f.pending = []byte{}
 		}
 	}
 }
@@ -83,16 +86,10 @@ func (f *Fluent) connect() (err error) {
 	return
 }
 
-func (f *Fluent) send(data []byte) (err error) {
+func (f *Fluent) send() (err error) {
 	if f.conn == nil {
 		err = f.connect()
 	}
-	if f.pending.Len() > 0 {
-		for e := f.pending.Front(); e != nil; e = e.Next() {
-			_, err = f.conn.Write(e.Value.([]byte))
-		}
-	} else {
-		_, err = f.conn.Write(data)
-	}
+	_, err = f.conn.Write(f.pending)
 	return
 }
