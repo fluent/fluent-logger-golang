@@ -42,9 +42,7 @@ func New(config Config) (f *Fluent, err error) {
 	if config.BufferLimit == 0 {
 		config.BufferLimit = defaultBufferLimit
 	}
-	f = &Fluent{
-		Config: config,
-	}
+	f = &Fluent{Config: config}
 	err = f.connect()
 	return
 }
