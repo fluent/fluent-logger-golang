@@ -1,4 +1,7 @@
 language: go
+before_install:
+ - sudo apt-get update
+ - sudo apt-get install td-agent
 install:
   - go get github.com/bmizerany/assert
   - go get github.com/ugorji/go-msgpack
