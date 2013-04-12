@@ -44,7 +44,7 @@ func main() {
   logger.Post(tag, data)
 }
 ```
-## Setting Config Values
+## Setting config values
 
 ```go
 f := fluent.New(fluent.Config{FluentPort: 80, FluentHost: "example.com"})
