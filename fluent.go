@@ -1,7 +1,6 @@
 package fluent
 
 import (
-	// "container/list"
 	"fmt"
 	msgpack "github.com/ugorji/go-msgpack"
 	"net"
