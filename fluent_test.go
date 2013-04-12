@@ -18,6 +18,13 @@ func Test_New_itShouldUseConfigValuesFromArguments(t *testing.T) {
 	assert.Equal(t, f.Config.FluentHost, "foobarhost")
 }
 
+func Test_Close_itShouldBeNil(t *testing.T) {
+	f, _ := New(Config{})
+	assert.NotEqual(t, f.conn, nil)
+  f.Close()
+  assert.Equal(t, f.conn, nil)
+}
+
 func Benchmark_PostWithShortMessage(b *testing.B) {
 	b.StopTimer()
 	f, err := New(Config{})
