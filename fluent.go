@@ -10,15 +10,17 @@ import (
 )
 
 const (
-	defaultHost    = "127.0.0.1"
-	defaultPort    = 24224
-	defaultTimeout = 3 * time.Second
+	defaultHost        = "127.0.0.1"
+	defaultPort        = 24224
+	defaultTimeout     = 3 * time.Second
+	defaultBufferLimit = 8 * 1024 * 1024
 )
 
 type Config struct {
-	FluentPort int
-	FluentHost string
-	Timeout    time.Duration
+	FluentPort  int
+	FluentHost  string
+	Timeout     time.Duration
+	BufferLimit int
 }
 
 type Fluent struct {
@@ -38,6 +40,9 @@ func New(config Config) (f *Fluent, err error) {
 	if config.Timeout == 0 {
 		config.Timeout = defaultTimeout
 	}
+	if config.BufferLimit == 0 {
+		config.BufferLimit = defaultBufferLimit
+	}
 	f = &Fluent{
 		Config: config,
 	}
@@ -49,18 +54,25 @@ func New(config Config) (f *Fluent, err error) {
 func (f *Fluent) Post(tag string, message interface{}) {
 	timeNow := time.Now().Unix()
 	msg := []interface{}{tag, timeNow, message}
-	data, err := msgpack.Marshal(msg)
-	if err != nil {
-		fmt.Println("Fluent: Can't convert to msgpack:", msg, err)
+	data, dumperr := msgpack.Marshal(msg)
+	if dumperr != nil {
+		fmt.Println("Fluent: Can't convert to msgpack:", msg, dumperr)
+	} else {
+		err := f.send(data)
+		if err != nil && len(data) <= f.Config.BufferLimit {
+			f.pending.PushBack(data)
+			f.Close()
+		} else {
+			f.pending.Init()
+		}
 	}
-	f.send(data)
 }
 
 // Close closes the connection.
 func (f *Fluent) Close() (err error) {
 	if f.conn != nil {
-	  f.conn.Close()
-	  f.conn = nil
+		f.conn.Close()
+		f.conn = nil
 	}
 	return
 }
@@ -81,13 +93,6 @@ func (f *Fluent) send(data []byte) (err error) {
 		}
 	} else {
 		_, err = f.conn.Write(data)
-	}
-	if err != nil {
-		fmt.Println(err)
-		f.pending.PushBack(data)
-		f.Close()
-	} else {
-		f.pending.Init()
 	}
 	return
 }

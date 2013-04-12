@@ -10,6 +10,7 @@ func Test_New_itShouldUseDefaultConfigValuesIfNoOtherProvided(t *testing.T) {
 	assert.Equal(t, f.Config.FluentPort, defaultPort)
 	assert.Equal(t, f.Config.FluentHost, defaultHost)
 	assert.Equal(t, f.Config.Timeout, defaultTimeout)
+	assert.Equal(t, f.Config.BufferLimit, defaultBufferLimit)
 }
 
 func Test_New_itShouldUseConfigValuesFromArguments(t *testing.T) {
