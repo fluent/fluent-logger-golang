@@ -58,18 +58,27 @@ func (f *Fluent) Post(tag string, message interface{}) {
 		f.pending = append(f.pending, data...)
 		err := f.send()
 		if err != nil {
-			f.Close()
+			f.close()
 			if len(data) > f.Config.BufferLimit {
-				f.pending = []byte{}
+				f.initPending()
 			}
 		} else {
-			f.pending = []byte{}
+			f.initPending()
 		}
 	}
 }
 
 // Close closes the connection.
 func (f *Fluent) Close() (err error) {
+	if len(f.pending) > 0 {
+		_ = f.send()
+	}
+	err = f.close()
+	return
+}
+
+// close closes the connection.
+func (f *Fluent) close() (err error) {
 	if f.conn != nil {
 		f.conn.Close()
 		f.conn = nil
@@ -77,10 +86,14 @@ func (f *Fluent) Close() (err error) {
 	return
 }
 
-// Connect establishes a new connection using the specified transport.
+// connect establishes a new connection using the specified transport.
 func (f *Fluent) connect() (err error) {
 	f.conn, err = net.DialTimeout("tcp", f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), f.Config.Timeout)
 	return
+}
+
+func (f *Fluent) initPending() {
+	f.pending = f.pending[0:0]
 }
 
 func (f *Fluent) send() (err error) {
