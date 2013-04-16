@@ -97,17 +97,11 @@ func (f *Fluent) initPending() {
 }
 
 func (f *Fluent) send() (err error) {
-	defer func() {
-		if e := recover(); e != nil {
-			msg := fmt.Sprint(e)
-			if msg != "runtime error: invalid memory address or nil pointer dereference" {
-				panic(e)
-			}
-		}
-	}()
 	if f.conn == nil {
 		err = f.connect()
 	}
-	_, err = f.conn.Write(f.pending)
+	if f.conn != nil {
+		_, err = f.conn.Write(f.pending)
+	}
 	return
 }
