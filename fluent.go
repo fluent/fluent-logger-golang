@@ -100,7 +100,7 @@ func (f *Fluent) send() (err error) {
 	if f.conn == nil {
 		err = f.connect()
 	}
-	if err != nil {
+	if err == nil {
 		_, err = f.conn.Write(f.pending)
 	}
 	return
