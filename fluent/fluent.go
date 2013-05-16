@@ -51,13 +51,11 @@ func New(config Config) (f *Fluent, err error) {
 func (f *Fluent) Post(tag string, message interface{}) {
 	timeNow := time.Now().Unix()
 	msg := []interface{}{tag, timeNow, message}
-	data, dumperr := msgpack.Marshal(msg)
-	if dumperr != nil {
+	if data, dumperr := msgpack.Marshal(msg); dumperr != nil {
 		fmt.Println("Fluent: Can't convert to msgpack:", msg, dumperr)
 	} else {
 		f.pending = append(f.pending, data...)
-		err := f.send()
-		if err != nil {
+		if err := f.send(); err != nil {
 			f.close()
 			if len(data) > f.Config.BufferLimit {
 				f.initPending()
