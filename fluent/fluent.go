@@ -1,6 +1,7 @@
 package fluent
 
 import (
+	"errors"
 	"fmt"
 	msgpack "github.com/ugorji/go-msgpack"
 	"net"
@@ -9,10 +10,13 @@ import (
 )
 
 const (
-	defaultHost        = "127.0.0.1"
-	defaultPort        = 24224
-	defaultTimeout     = 3 * time.Second
-	defaultBufferLimit = 8 * 1024 * 1024
+	defaultHost                   = "127.0.0.1"
+	defaultPort                   = 24224
+	defaultTimeout                = 3 * time.Second
+	defaultBufferLimit            = 8 * 1024 * 1024
+	defaultRetryWait              = 500
+	defaultMaxRetry               = 13
+	defaultReconnectWaitIncreRate = 1.5
 )
 
 type Config struct {
@@ -20,12 +24,15 @@ type Config struct {
 	FluentHost  string
 	Timeout     time.Duration
 	BufferLimit int
+	RetryWait   int
+	MaxRetry    int
 }
 
 type Fluent struct {
 	Config
-	conn    net.Conn
-	pending []byte
+	conn         net.Conn
+	pending      []byte
+	reconnecting bool
 }
 
 // New creates a new Logger.
@@ -42,7 +49,13 @@ func New(config Config) (f *Fluent, err error) {
 	if config.BufferLimit == 0 {
 		config.BufferLimit = defaultBufferLimit
 	}
-	f = &Fluent{Config: config}
+	if config.RetryWait == 0 {
+		config.RetryWait = defaultRetryWait
+	}
+	if config.MaxRetry == 0 {
+		config.MaxRetry = defaultMaxRetry
+	}
+	f = &Fluent{Config: config, reconnecting: false}
 	err = f.connect()
 	return
 }
@@ -90,15 +103,36 @@ func (f *Fluent) connect() (err error) {
 	return
 }
 
+func (f *Fluent) reconnect() {
+	go func() {
+		for i := 0; ; i++ {
+			err := f.connect()
+			if err == nil {
+				f.reconnecting = false
+				break
+			} else {
+				if i == f.Config.MaxRetry {
+					panic("fluent: cannot reconnect!")
+				}
+				waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
+				time.Sleep(time.Duration(waitTime) * time.Millisecond)
+			}
+		}
+	}()
+}
+
 func (f *Fluent) initPending() {
 	f.pending = f.pending[0:0]
 }
 
 func (f *Fluent) send() (err error) {
 	if f.conn == nil {
-		err = f.connect()
-	}
-	if err == nil {
+		if f.reconnecting == false {
+			f.reconnecting = true
+			f.reconnect()
+		}
+		err = errors.New("cannot send, client reconnecting")
+	} else {
 		_, err = f.conn.Write(f.pending)
 	}
 	return
