@@ -8,7 +8,7 @@ fluent-logger-golang
 ## How to install
 
 ```
-go get github.com/t-k/fluent-logger-golang
+go get github.com/t-k/fluent-logger-golang/fluent
 ```
 
 ## Usage
@@ -16,10 +16,10 @@ go get github.com/t-k/fluent-logger-golang
 Install the package with `go get` and use `import` to include it in your project.
 
 ```
-import "github.com/t-k/fluent-logger-golang"
+import "github.com/t-k/fluent-logger-golang/fluent"
 ```
 
-GoDoc: http://godoc.org/github.com/t-k/fluent-logger-golang
+GoDoc: http://godoc.org/github.com/t-k/fluent-logger-golang/fluent
 
 ##Example
 
@@ -27,7 +27,7 @@ GoDoc: http://godoc.org/github.com/t-k/fluent-logger-golang
 package main
 
 import (
-  "github.com/t-k/fluent-logger-golang"
+  "github.com/t-k/fluent-logger-golang/fluent"
   "fmt"
 )
 
