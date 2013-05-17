@@ -65,7 +65,7 @@ func (f *Fluent) Post(tag string, message interface{}) {
 	timeNow := time.Now().Unix()
 	msg := []interface{}{tag, timeNow, message}
 	if data, dumperr := msgpack.Marshal(msg); dumperr != nil {
-		fmt.Println("Fluent: Can't convert to msgpack:", msg, dumperr)
+		fmt.Println("fluent#Post: Can't convert to msgpack:", msg, dumperr)
 	} else {
 		f.pending = append(f.pending, data...)
 		if err := f.send(); err != nil {
@@ -112,7 +112,7 @@ func (f *Fluent) reconnect() {
 				break
 			} else {
 				if i == f.Config.MaxRetry {
-					panic("fluent: cannot reconnect!")
+					panic("fluent#reconnect: Failed to reconnect!")
 				}
 				waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
 				time.Sleep(time.Duration(waitTime) * time.Millisecond)
@@ -131,7 +131,7 @@ func (f *Fluent) send() (err error) {
 			f.reconnecting = true
 			f.reconnect()
 		}
-		err = errors.New("cannot send, client reconnecting")
+		err = errors.New("fluent#send: Can't send logs, client is reconnecting")
 	} else {
 		_, err = f.conn.Write(f.pending)
 	}
