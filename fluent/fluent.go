@@ -71,10 +71,10 @@ func (f *Fluent) Post(tag string, message interface{}) {
 		if err := f.send(); err != nil {
 			f.close()
 			if len(data) > f.Config.BufferLimit {
-				f.initPending()
+				f.flushBuffer()
 			}
 		} else {
-			f.initPending()
+			f.flushBuffer()
 		}
 	}
 }
@@ -121,7 +121,7 @@ func (f *Fluent) reconnect() {
 	}()
 }
 
-func (f *Fluent) initPending() {
+func (f *Fluent) flushBuffer() {
 	f.pending = f.pending[0:0]
 }
 
