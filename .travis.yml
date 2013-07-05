@@ -1,4 +1,4 @@
 language: go
 install:
   - go get github.com/bmizerany/assert
-  - go get github.com/ugorji/go-msgpack
+  - go get github.com/ugorji/go/codec

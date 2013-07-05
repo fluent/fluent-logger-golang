@@ -3,10 +3,18 @@ package fluent
 import (
 	"errors"
 	"fmt"
-	msgpack "github.com/ugorji/go-msgpack"
+	"github.com/ugorji/go/codec"
 	"net"
+	"reflect"
 	"strconv"
 	"time"
+)
+
+var (
+	mapStrIntfTyp = reflect.TypeOf(map[string]interface{}(nil))
+	sliceByteTyp  = reflect.TypeOf([]byte(nil))
+	timeTyp       = reflect.TypeOf(time.Time{})
+	mh            codec.MsgpackHandle
 )
 
 const (
@@ -33,6 +41,12 @@ type Fluent struct {
 	conn         net.Conn
 	pending      []byte
 	reconnecting bool
+}
+
+func init() {
+	mh.MapType = mapStrIntfTyp
+	mh.AddExt(sliceByteTyp, 0, mh.BinaryEncodeExt, mh.BinaryDecodeExt)
+	mh.AddExt(timeTyp, 1, mh.TimeEncodeExt, mh.TimeDecodeExt)
 }
 
 // New creates a new Logger.
@@ -64,13 +78,15 @@ func New(config Config) (f *Fluent, err error) {
 func (f *Fluent) Post(tag string, message interface{}) {
 	timeNow := time.Now().Unix()
 	msg := []interface{}{tag, timeNow, message}
-	if data, dumperr := msgpack.Marshal(msg); dumperr != nil {
+	if data, dumperr := toMsgpack(msg); dumperr != nil {
 		fmt.Println("fluent#Post: Can't convert to msgpack:", msg, dumperr)
 	} else {
+		fmt.Println(data)
+		// fmt.Println(&msg)
 		f.pending = append(f.pending, data...)
 		if err := f.send(); err != nil {
 			f.close()
-			if len(data) > f.Config.BufferLimit {
+			if len(msg) > f.Config.BufferLimit {
 				f.flushBuffer()
 			}
 		} else {
@@ -135,5 +151,11 @@ func (f *Fluent) send() (err error) {
 	} else {
 		_, err = f.conn.Write(f.pending)
 	}
+	return
+}
+
+func toMsgpack(val interface{}) (packed []byte, err error) {
+	enc := codec.NewEncoderBytes(&packed, &mh)
+	err = enc.Encode(val)
 	return
 }
