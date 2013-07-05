@@ -5,16 +5,12 @@ import (
 	"fmt"
 	"github.com/ugorji/go/codec"
 	"net"
-	"reflect"
 	"strconv"
 	"time"
 )
 
 var (
-	mapStrIntfTyp = reflect.TypeOf(map[string]interface{}(nil))
-	sliceByteTyp  = reflect.TypeOf([]byte(nil))
-	timeTyp       = reflect.TypeOf(time.Time{})
-	mh            codec.MsgpackHandle
+	mh codec.MsgpackHandle
 )
 
 const (
@@ -41,12 +37,6 @@ type Fluent struct {
 	conn         net.Conn
 	pending      []byte
 	reconnecting bool
-}
-
-func init() {
-	mh.MapType = mapStrIntfTyp
-	mh.AddExt(sliceByteTyp, 0, mh.BinaryEncodeExt, mh.BinaryDecodeExt)
-	mh.AddExt(timeTyp, 1, mh.TimeEncodeExt, mh.TimeDecodeExt)
 }
 
 // New creates a new Logger.
