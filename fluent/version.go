@@ -1,3 +1,3 @@
 package fluent
 
-const Version = "0.3.1"
+const Version = "0.4.0"
