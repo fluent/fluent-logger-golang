@@ -71,8 +71,6 @@ func (f *Fluent) Post(tag string, message interface{}) {
 	if data, dumperr := toMsgpack(msg); dumperr != nil {
 		fmt.Println("fluent#Post: Can't convert to msgpack:", msg, dumperr)
 	} else {
-		fmt.Println(data)
-		// fmt.Println(&msg)
 		f.pending = append(f.pending, data...)
 		if err := f.send(); err != nil {
 			f.close()
