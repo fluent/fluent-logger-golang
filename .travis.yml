@@ -1,4 +1,11 @@
 language: go
+go:
+  - 1.0
+  - 1.1
+  - tip
 install:
   - go get github.com/bmizerany/assert
   - go get github.com/ugorji/go/codec
+matrix:
+  allow_failures:
+    - go: tip
