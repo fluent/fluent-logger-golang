@@ -65,21 +65,21 @@ func New(config Config) (f *Fluent, err error) {
 //
 // Examples:
 //
-// 	// send string
+//  // send string
 //  f.Post("tag_name", "data")
 //
-// 	// send map[string]
+//  // send map[string]
 //  mapStringData := map[string]string{
-// 		"foo":  "bar",
-// 	}
+//  	"foo":  "bar",
+//  }
 //  f.Post("tag_name", mapStringData)
 //
-// 	// send struct
-// 	structData := struct {
+//  // send struct
+//  structData := struct {
 //  		Name string `codec:"name"`
 //  } {
 //  		"john smith",
-// 	}
+//  }
 //  f.Post("tag_name", structData)
 //
 func (f *Fluent) Post(tag string, message interface{}) {
