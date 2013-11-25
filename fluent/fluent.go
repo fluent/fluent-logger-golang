@@ -3,14 +3,9 @@ package fluent
 import (
 	"errors"
 	"fmt"
-	"github.com/ugorji/go/codec"
 	"net"
 	"strconv"
 	"time"
-)
-
-var (
-	mh codec.MsgpackHandle
 )
 
 const (
@@ -139,11 +134,5 @@ func (f *Fluent) send() (err error) {
 	} else {
 		_, err = f.conn.Write(f.pending)
 	}
-	return
-}
-
-func toMsgpack(val interface{}) (packed []byte, err error) {
-	enc := codec.NewEncoderBytes(&packed, &mh)
-	err = enc.Encode(val)
 	return
 }
