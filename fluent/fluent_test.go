@@ -85,3 +85,37 @@ func Benchmark_LogWithChunks(b *testing.B) {
 		f.Post("tag", "sdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddf")
 	}
 }
+
+func Benchmark_PostWithStruct(b *testing.B) {
+	b.StopTimer()
+	f, err := New(Config{})
+	if err != nil {
+		panic(err)
+	}
+
+	b.StartTimer()
+	data := struct {
+		Name string `codec:"name"`
+	}{
+		"john smith",
+	}
+	for i := 0; i < b.N; i++ {
+		f.Post("tag", data)
+	}
+}
+
+func Benchmark_PostWithMapString(b *testing.B) {
+	b.StopTimer()
+	f, err := New(Config{})
+	if err != nil {
+		panic(err)
+	}
+
+	b.StartTimer()
+	data := map[string]string{
+		"foo": "bar",
+	}
+	for i := 0; i < b.N; i++ {
+		f.Post("tag", data)
+	}
+}
