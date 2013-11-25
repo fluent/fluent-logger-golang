@@ -69,7 +69,7 @@ func (f *Fluent) Post(tag string, message interface{}) {
 		f.pending = append(f.pending, data...)
 		if err := f.send(); err != nil {
 			f.close()
-			if len(msg) > f.Config.BufferLimit {
+			if len(f.pending) > f.Config.BufferLimit {
 				f.flushBuffer()
 			}
 		} else {
