@@ -62,6 +62,26 @@ func New(config Config) (f *Fluent, err error) {
 }
 
 // Post writes the output for a logging event.
+//
+// Examples:
+//
+// 	// send string
+//  f.Post("tag_name", "data")
+//
+// 	// send map[string]
+//  mapStringData := map[string]string{
+// 		"foo":  "bar",
+// 	}
+//  f.Post("tag_name", mapStringData)
+//
+// 	// send struct
+// 	structData := struct {
+//  		Name string `codec:"name"`
+//  } {
+//  		"john smith",
+// 	}
+//  f.Post("tag_name", structData)
+//
 func (f *Fluent) Post(tag string, message interface{}) {
 	timeNow := time.Now().Unix()
 	msg := []interface{}{tag, timeNow, message}
