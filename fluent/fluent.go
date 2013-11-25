@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -32,6 +33,7 @@ type Fluent struct {
 	conn         net.Conn
 	pending      []byte
 	reconnecting bool
+	mu           sync.Mutex
 }
 
 // New creates a new Logger.
@@ -66,7 +68,9 @@ func (f *Fluent) Post(tag string, message interface{}) {
 	if data, dumperr := toMsgpack(msg); dumperr != nil {
 		fmt.Println("fluent#Post: Can't convert to msgpack:", msg, dumperr)
 	} else {
+		f.mu.Lock()
 		f.pending = append(f.pending, data...)
+		f.mu.Unlock()
 		if err := f.send(); err != nil {
 			f.close()
 			if len(f.pending) > f.Config.BufferLimit {
@@ -90,6 +94,8 @@ func (f *Fluent) Close() (err error) {
 // close closes the connection.
 func (f *Fluent) close() (err error) {
 	if f.conn != nil {
+		f.mu.Lock()
+		defer f.mu.Unlock()
 		f.conn.Close()
 		f.conn = nil
 	}
@@ -107,7 +113,9 @@ func (f *Fluent) reconnect() {
 		for i := 0; ; i++ {
 			err := f.connect()
 			if err == nil {
+				f.mu.Lock()
 				f.reconnecting = false
+				f.mu.Unlock()
 				break
 			} else {
 				if i == f.Config.MaxRetry {
@@ -121,13 +129,17 @@ func (f *Fluent) reconnect() {
 }
 
 func (f *Fluent) flushBuffer() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.pending = f.pending[0:0]
 }
 
 func (f *Fluent) send() (err error) {
 	if f.conn == nil {
 		if f.reconnecting == false {
+			f.mu.Lock()
 			f.reconnecting = true
+			f.mu.Unlock()
 			f.reconnect()
 		}
 		err = errors.New("fluent#send: Can't send logs, client is reconnecting")

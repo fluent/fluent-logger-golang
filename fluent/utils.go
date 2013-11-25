@@ -1,12 +1,12 @@
 package fluent
 
 import (
+	"github.com/ugorji/go/codec"
 	"math"
-  "github.com/ugorji/go/codec"
 )
 
 var (
-  mh codec.MsgpackHandle
+	mh codec.MsgpackHandle
 )
 
 func e(x, y float64) int {
@@ -14,7 +14,7 @@ func e(x, y float64) int {
 }
 
 func toMsgpack(val interface{}) (packed []byte, err error) {
-  enc := codec.NewEncoderBytes(&packed, &mh)
-  err = enc.Encode(val)
-  return
+	enc := codec.NewEncoderBytes(&packed, &mh)
+	err = enc.Encode(val)
+	return
 }
