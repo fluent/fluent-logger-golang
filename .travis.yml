@@ -8,4 +8,5 @@ install:
   - go get github.com/ugorji/go/codec
 matrix:
   allow_failures:
+    - go: 1.0
     - go: tip
