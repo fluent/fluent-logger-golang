@@ -5,6 +5,7 @@ import (
 	"net"
 	"runtime"
 	"testing"
+	"time"
 )
 
 const (
@@ -117,5 +118,22 @@ func Benchmark_PostWithMapString(b *testing.B) {
 	}
 	for i := 0; i < b.N; i++ {
 		f.Post("tag", data)
+	}
+}
+
+func Benchmark_PostWithMapStringAndTime(b *testing.B) {
+	b.StopTimer()
+	f, err := New(Config{})
+	if err != nil {
+		panic(err)
+	}
+
+	b.StartTimer()
+	data := map[string]string{
+		"foo": "bar",
+	}
+	tm := time.Now()
+	for i := 0; i < b.N; i++ {
+		f.PostWithTime("tag", tm, data)
 	}
 }

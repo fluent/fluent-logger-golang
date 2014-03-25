@@ -74,6 +74,13 @@ func New(config Config) (f *Fluent, err error) {
 //  }
 //  f.Post("tag_name", mapStringData)
 //
+//  // send message with specified time
+//  mapStringData := map[string]string{
+//  	"foo":  "bar",
+//  }
+//  tm := time.Now()
+//  f.PostWithTime("tag_name", tm, mapStringData)
+//
 //  // send struct
 //  structData := struct {
 //  		Name string `codec:"name"`
@@ -83,8 +90,13 @@ func New(config Config) (f *Fluent, err error) {
 //  f.Post("tag_name", structData)
 //
 func (f *Fluent) Post(tag string, message interface{}) {
-	timeNow := time.Now().Unix()
-	msg := []interface{}{tag, timeNow, message}
+	timeNow := time.Now()
+	f.PostWithTime(tag, timeNow, message)
+}
+
+func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) {
+	timeUnix := tm.Unix()
+	msg := []interface{}{tag, timeUnix, message}
 	if data, dumperr := toMsgpack(msg); dumperr != nil {
 		fmt.Println("fluent#Post: Can't convert to msgpack:", msg, dumperr)
 	} else {
