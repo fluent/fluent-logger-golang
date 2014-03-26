@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 0.4.3
+ * Added method PostWithTime(Thanks [@choplin])
+
+## 0.4.2
+ * Use sync.Mutex
+ * Fix BufferLimit comparison
+ * Export toMsgpack function to utils.go
+
 ## 0.4.1
  * Remove unused fmt.Println
 
