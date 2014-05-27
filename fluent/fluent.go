@@ -128,6 +128,10 @@ func (f *Fluent) close() (err error) {
 	if f.conn != nil {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+	} else {
+		return
+	}
+	if f.conn != nil {
 		f.conn.Close()
 		f.conn = nil
 	}
