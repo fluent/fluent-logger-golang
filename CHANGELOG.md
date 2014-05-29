@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 0.4.4
+ * Fixes runtime error of close function.(Thanks @y-matsuwitter)
+
 ## 0.4.3
  * Added method PostWithTime(Thanks [@choplin])
 
