@@ -26,6 +26,7 @@ type Config struct {
 	BufferLimit int
 	RetryWait   int
 	MaxRetry    int
+	TagPrefix   string
 }
 
 type Fluent struct {
@@ -96,6 +97,9 @@ func (f *Fluent) Post(tag string, message interface{}) {
 
 func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) {
 	timeUnix := tm.Unix()
+	if len(f.TagPrefix) > 0 {
+		tag = f.TagPrefix + "." + tag
+	}
 	msg := []interface{}{tag, timeUnix, message}
 	if data, dumperr := toMsgpack(msg); dumperr != nil {
 		fmt.Println("fluent#Post: Can't convert to msgpack:", msg, dumperr)
