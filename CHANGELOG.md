@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 0.5.0
+ * Add TagPrefix in Config (Thanks @hotchpotch)
+
 ## 0.4.4
  * Fixes runtime error of close function.(Thanks @y-matsuwitter)
 
