@@ -184,7 +184,9 @@ func (f *Fluent) send() (err error) {
 		}
 		err = errors.New("fluent#send: Can't send logs, client is reconnecting")
 	} else {
+		f.mu.Lock()
 		_, err = f.conn.Write(f.pending)
+		f.mu.Unlock()
 	}
 	return
 }
