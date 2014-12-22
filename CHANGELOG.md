@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 0.5.1
+ * Lock when writing pending buffers (Thanks @eagletmt)
+
 ## 0.5.0
  * Add TagPrefix in Config (Thanks @hotchpotch)
 
