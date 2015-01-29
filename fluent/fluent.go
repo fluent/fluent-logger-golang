@@ -121,9 +121,9 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) {
 // Close closes the connection.
 func (f *Fluent) Close() (err error) {
 	if len(f.pending) > 0 {
-		_ = f.send()
+		err = f.send()
 	}
-	err = f.close()
+	f.close()
 	return
 }
 
