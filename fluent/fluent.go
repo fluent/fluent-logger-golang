@@ -3,6 +3,7 @@ package fluent
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 	"sync"
