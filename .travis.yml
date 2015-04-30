@@ -8,7 +8,8 @@ go:
   - tip
 install:
   - go get github.com/bmizerany/assert
-  - go get github.com/ugorji/go/codec
+  - go get github.com/philhofer/fwd
+  - go get github.com/tinylib/msgp
 matrix:
   allow_failures:
     - go: 1.0
