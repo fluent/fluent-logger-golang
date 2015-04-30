@@ -96,26 +96,35 @@ func (f *Fluent) Post(tag string, message interface{}) {
 }
 
 func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) {
-	timeUnix := tm.Unix()
 	if len(f.TagPrefix) > 0 {
 		tag = f.TagPrefix + "." + tag
 	}
-	msg := []interface{}{tag, timeUnix, message}
-	if data, dumperr := toMsgpack(msg); dumperr != nil {
-		fmt.Println("fluent#Post: Can't convert to msgpack:", msg, dumperr)
+	if data, dumperr := f.EncodeData(tag, tm, message); dumperr != nil {
+		fmt.Println("fluent#Post: Can't convert to msgpack:", message, dumperr)
 	} else {
-		f.mu.Lock()
-		f.pending = append(f.pending, data...)
-		f.mu.Unlock()
-		if err := f.send(); err != nil {
-			f.close()
-			if len(f.pending) > f.Config.BufferLimit {
-				f.flushBuffer()
-			}
-		} else {
+		f.PostRawData(data)
+	}
+}
+
+func (f *Fluent) PostRawData(data []byte) {
+	f.mu.Lock()
+	f.pending = append(f.pending, data...)
+	f.mu.Unlock()
+	if err := f.send(); err != nil {
+		f.close()
+		if len(f.pending) > f.Config.BufferLimit {
 			f.flushBuffer()
 		}
+	} else {
+		f.flushBuffer()
 	}
+}
+
+func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data []byte, err error) {
+	timeUnix := tm.Unix()
+	msg := &Message{Tag: tag, Time: timeUnix, Record: message}
+	data, err = msg.MarshalMsg(nil)
+	return
 }
 
 // Close closes the connection.
@@ -146,6 +155,10 @@ func (f *Fluent) close() (err error) {
 func (f *Fluent) connect() (err error) {
 	f.conn, err = net.DialTimeout("tcp", f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), f.Config.Timeout)
 	return
+}
+
+func e(x, y float64) int {
+	return int(math.Pow(x, y))
 }
 
 func (f *Fluent) reconnect() {
