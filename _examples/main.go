@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/t-k/fluent-logger-golang/fluent"
+	"github.com/fluent/fluent-logger-golang/fluent"
 )
 
 func main() {
