@@ -7,6 +7,7 @@ install:
   - go get github.com/bmizerany/assert
   - go get github.com/philhofer/fwd
   - go get github.com/tinylib/msgp
+sudo: false
 matrix:
   allow_failures:
     - go: tip
