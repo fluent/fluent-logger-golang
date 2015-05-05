@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/fluent/fluent-logger-golang/fluent"
+	// "../fluent"
 )
 
 func main() {
@@ -15,5 +16,9 @@ func main() {
 	var data = map[string]string{
 		"foo":  "bar",
 		"hoge": "hoge"}
-	logger.Post(tag, data)
+	i := 0
+	for i < 100 {
+		logger.Post(tag, data)
+		i = i + 1
+	}
 }
