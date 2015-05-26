@@ -71,7 +71,9 @@ func Benchmark_PostWithShortMessage(b *testing.B) {
 	b.StartTimer()
 	data := map[string]string{"message": "Hello World"}
 	for i := 0; i < b.N; i++ {
-		f.Post("tag", data)
+		if err := f.Post("tag", data); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -85,7 +87,9 @@ func Benchmark_LogWithChunks(b *testing.B) {
 	b.StartTimer()
 	data := map[string]string{"msg": "sdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddf"}
 	for i := 0; i < b.N; i++ {
-		f.Post("tag", data)
+		if err := f.Post("tag", data); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -98,12 +102,54 @@ func Benchmark_PostWithStruct(b *testing.B) {
 
 	b.StartTimer()
 	data := struct {
-		Name string `msg:"name"`
+		Name string `msg:"msgnamename"`
 	}{
 		"john smith",
 	}
 	for i := 0; i < b.N; i++ {
-		f.Post("tag", data)
+		if err := f.Post("tag", data); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func Benchmark_PostWithStructTaggedAsCodec(b *testing.B) {
+	b.StopTimer()
+	f, err := New(Config{})
+	if err != nil {
+		panic(err)
+	}
+
+	b.StartTimer()
+	data := struct {
+		Name string `codec:"codecname"`
+	}{
+		"john smith",
+	}
+	for i := 0; i < b.N; i++ {
+		if err := f.Post("tag", data); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func Benchmark_PostWithStructWithoutTag(b *testing.B) {
+	b.StopTimer()
+	f, err := New(Config{})
+	if err != nil {
+		panic(err)
+	}
+
+	b.StartTimer()
+	data := struct {
+		Name string
+	}{
+		"john smith",
+	}
+	for i := 0; i < b.N; i++ {
+		if err := f.Post("tag", data); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -119,7 +165,9 @@ func Benchmark_PostWithMapString(b *testing.B) {
 		"foo": "bar",
 	}
 	for i := 0; i < b.N; i++ {
-		f.Post("tag", data)
+		if err := f.Post("tag", data); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -135,7 +183,9 @@ func Benchmark_PostWithMapSlice(b *testing.B) {
 		"foo": {1, 2, 3},
 	}
 	for i := 0; i < b.N; i++ {
-		f.Post("tag", data)
+		if err:= f.Post("tag", data); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -152,6 +202,8 @@ func Benchmark_PostWithMapStringAndTime(b *testing.B) {
 	}
 	tm := time.Now()
 	for i := 0; i < b.N; i++ {
-		f.PostWithTime("tag", tm, data)
+		if err := f.PostWithTime("tag", tm, data); err != nil {
+			panic(err)
+		}
 	}
 }
