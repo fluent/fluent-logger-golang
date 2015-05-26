@@ -29,6 +29,7 @@ package main
 import (
   "github.com/fluent/fluent-logger-golang/fluent"
   "fmt"
+  "time"
 )
 
 func main() {
@@ -40,10 +41,18 @@ func main() {
   tag := "myapp.access"
   var data = map[string]string{
     "foo":  "bar",
-    "hoge": "hoge"}
-  logger.Post(tag, data)
+    "hoge": "hoge"
+  }
+  error := logger.Post(tag, data)
+  // error := logger.Post(tag, time.Time.Now(), data)
+  if error != nil {
+    panic(error)
+  }
 }
 ```
+
+`data` must be a value like `map[string]literal`, `map[string]interface{}` or `struct`. Logger refers tags `msg` or `codec` of each fields of structs.
+
 ## Setting config values
 
 ```go

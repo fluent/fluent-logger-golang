@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 1.0.0
+ * Fix API of `Post` and `PostWithTime` to return error when encoding
+ * Add argument checks to get `map` with string keys and `struct` only
+ * Logger refers tags (`msg` or `codec`) of fields of struct
+
+## 0.6.0
+ * Change dependency from ugorji/go/codec to tinylib/msgp
+ * Add `PostRawData` method to post pre-encoded data to servers
+
 ## 0.5.1
  * Lock when writing pending buffers (Thanks @eagletmt)
 
