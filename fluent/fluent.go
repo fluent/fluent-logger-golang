@@ -91,12 +91,12 @@ func New(config Config) (f *Fluent, err error) {
 //  }
 //  f.Post("tag_name", structData)
 //
-func (f *Fluent) Post(tag string, message interface{}) {
+func (f *Fluent) Post(tag string, message map[string]interface{}) {
 	timeNow := time.Now()
 	f.PostWithTime(tag, timeNow, message)
 }
 
-func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) {
+func (f *Fluent) PostWithTime(tag string, tm time.Time, message map[string]interface{}) {
 	if len(f.TagPrefix) > 0 {
 		tag = f.TagPrefix + "." + tag
 	}
