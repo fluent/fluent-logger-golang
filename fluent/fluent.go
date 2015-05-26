@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -85,25 +86,51 @@ func New(config Config) (f *Fluent, err error) {
 //
 //  // send struct
 //  structData := struct {
-//  		Name string `codec:"name"`
+//  		Name string `msg:"name"`
 //  } {
 //  		"john smith",
 //  }
 //  f.Post("tag_name", structData)
 //
-func (f *Fluent) Post(tag string, message map[string]interface{}) {
+func (f *Fluent) Post(tag string, message interface{}) error {
 	timeNow := time.Now()
-	f.PostWithTime(tag, timeNow, message)
+	return f.PostWithTime(tag, timeNow, message)
 }
 
-func (f *Fluent) PostWithTime(tag string, tm time.Time, message map[string]interface{}) {
+func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) error {
 	if len(f.TagPrefix) > 0 {
 		tag = f.TagPrefix + "." + tag
 	}
+
+	msg := reflect.ValueOf(message)
+	msgtype := msg.Type()
+
+	if msgtype.Kind() == reflect.Struct {
+		// message should be tagged by "msg"
+		return f.EncodeAndPostData(tag, tm, message)
+	}
+
+	if msgtype.Kind() != reflect.Map {
+		return errors.New("messge must be a map")
+	} else if msgtype.Key().Kind() != reflect.String {
+		return errors.New("map keys must be strings")
+	}
+
+	kv := make(map[string]interface{})
+	for _, k := range msg.MapKeys() {
+		kv[k.String()] = msg.MapIndex(k).Interface()
+	}
+
+	return f.EncodeAndPostData(tag, tm, kv)
+}
+
+func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message interface{}) error {
 	if data, dumperr := f.EncodeData(tag, tm, message); dumperr != nil {
-		fmt.Println("fluent#Post: can't convert to msgpack:", message, dumperr)
+		return fmt.Errorf("fluent#EncodeAndPostData: can't convert '%s' to msgpack:%s", message, dumperr)
+		// fmt.Println("fluent#Post: can't convert to msgpack:", message, dumperr)
 	} else {
 		f.PostRawData(data)
+		return nil
 	}
 }
 

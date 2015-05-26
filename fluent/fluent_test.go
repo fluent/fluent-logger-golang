@@ -69,8 +69,9 @@ func Benchmark_PostWithShortMessage(b *testing.B) {
 	}
 
 	b.StartTimer()
+	data := map[string]string{"message": "Hello World"}
 	for i := 0; i < b.N; i++ {
-		f.Post("tag", "Hello World")
+		f.Post("tag", data)
 	}
 }
 
@@ -82,8 +83,9 @@ func Benchmark_LogWithChunks(b *testing.B) {
 	}
 
 	b.StartTimer()
+	data := map[string]string{"msg": "sdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddf"}
 	for i := 0; i < b.N; i++ {
-		f.Post("tag", "sdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddf")
+		f.Post("tag", data)
 	}
 }
 
@@ -96,7 +98,7 @@ func Benchmark_PostWithStruct(b *testing.B) {
 
 	b.StartTimer()
 	data := struct {
-		Name string `codec:"name"`
+		Name string `msg:"name"`
 	}{
 		"john smith",
 	}
@@ -115,6 +117,22 @@ func Benchmark_PostWithMapString(b *testing.B) {
 	b.StartTimer()
 	data := map[string]string{
 		"foo": "bar",
+	}
+	for i := 0; i < b.N; i++ {
+		f.Post("tag", data)
+	}
+}
+
+func Benchmark_PostWithMapSlice(b *testing.B) {
+	b.StopTimer()
+	f, err := New(Config{})
+	if err != nil {
+		panic(err)
+	}
+
+	b.StartTimer()
+	data := map[string][]int{
+		"foo": {1, 2, 3},
 	}
 	for i := 0; i < b.N; i++ {
 		f.Post("tag", data)
