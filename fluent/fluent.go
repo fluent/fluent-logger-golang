@@ -106,8 +106,20 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 	msgtype := msg.Type()
 
 	if msgtype.Kind() == reflect.Struct {
-		// message should be tagged by "msg"
-		return f.EncodeAndPostData(tag, tm, message)
+		// message should be tagged by "codec" or "msg"
+		kv := make(map[string]interface{})
+		fields := msgtype.NumField()
+		for i := 0; i < fields; i++ {
+			field := msgtype.Field(i)
+			name := field.Name
+			if n1 := field.Tag.Get("msg"); n1 != "" {
+				name = n1
+			} else if n2 := field.Tag.Get("codec"); n2 != "" {
+				name = n2
+			}
+			kv[name] = msg.FieldByIndex(field.Index).Interface()
+		}
+		return f.EncodeAndPostData(tag, tm, kv)
 	}
 
 	if msgtype.Kind() != reflect.Map {
