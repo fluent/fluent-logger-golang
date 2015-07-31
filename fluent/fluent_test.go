@@ -1,6 +1,7 @@
 package fluent
 
 import (
+	"bytes"
 	"github.com/bmizerany/assert"
 	"net"
 	"runtime"
@@ -11,6 +12,15 @@ import (
 const (
 	RECV_BUF_LEN = 1024
 )
+
+// Conn is io.WriteCloser
+type Conn struct {
+	bytes.Buffer
+}
+
+func (c *Conn) Close() error {
+	return nil
+}
 
 func init() {
 	numProcs := runtime.NumCPU()
@@ -59,6 +69,27 @@ func Test_New_itShouldUseConfigValuesFromArguments(t *testing.T) {
 	f, _ := New(Config{FluentPort: 6666, FluentHost: "foobarhost"})
 	assert.Equal(t, f.Config.FluentPort, 6666)
 	assert.Equal(t, f.Config.FluentHost, "foobarhost")
+}
+
+func Test_send_WritePendingToConn(t *testing.T) {
+	f := &Fluent{Config: Config{}, reconnecting: false}
+
+	buf := &Conn{}
+	f.conn = buf
+
+	msg := "This is test writing."
+	bmsg := []byte(msg)
+	f.pending = append(f.pending, bmsg...)
+
+	err := f.send()
+	if err != nil {
+		t.Error(err)
+	}
+
+	rcv := buf.String()
+	if rcv != msg {
+		t.Errorf("got %s, except %s", rcv, msg)
+	}
 }
 
 func Benchmark_PostWithShortMessage(b *testing.B) {
@@ -183,7 +214,7 @@ func Benchmark_PostWithMapSlice(b *testing.B) {
 		"foo": {1, 2, 3},
 	}
 	for i := 0; i < b.N; i++ {
-		if err:= f.Post("tag", data); err != nil {
+		if err := f.Post("tag", data); err != nil {
 			panic(err)
 		}
 	}
