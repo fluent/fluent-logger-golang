@@ -14,6 +14,8 @@ import (
 
 const (
 	defaultHost                   = "127.0.0.1"
+	defaultNetwork                = "tcp"
+	defaultSocketPath             = ""
 	defaultPort                   = 24224
 	defaultTimeout                = 3 * time.Second
 	defaultBufferLimit            = 8 * 1024 * 1024
@@ -23,13 +25,15 @@ const (
 )
 
 type Config struct {
-	FluentPort  int
-	FluentHost  string
-	Timeout     time.Duration
-	BufferLimit int
-	RetryWait   int
-	MaxRetry    int
-	TagPrefix   string
+	FluentPort       int
+	FluentHost       string
+	FluentNetwork    string
+	FluentSocketPath string
+	Timeout          time.Duration
+	BufferLimit      int
+	RetryWait        int
+	MaxRetry         int
+	TagPrefix        string
 }
 
 type Fluent struct {
@@ -42,11 +46,17 @@ type Fluent struct {
 
 // New creates a new Logger.
 func New(config Config) (f *Fluent, err error) {
+	if config.FluentNetwork == "" {
+		config.FluentNetwork = defaultNetwork
+	}
 	if config.FluentHost == "" {
 		config.FluentHost = defaultHost
 	}
 	if config.FluentPort == 0 {
 		config.FluentPort = defaultPort
+	}
+	if config.FluentSocketPath == "" {
+		config.FluentSocketPath = defaultSocketPath
 	}
 	if config.Timeout == 0 {
 		config.Timeout = defaultTimeout
@@ -194,7 +204,14 @@ func (f *Fluent) close() (err error) {
 
 // connect establishes a new connection using the specified transport.
 func (f *Fluent) connect() (err error) {
-	f.conn, err = net.DialTimeout("tcp", f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), f.Config.Timeout)
+	switch f.Config.FluentNetwork {
+	case "tcp":
+		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), f.Config.Timeout)
+	case "unix":
+		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentSocketPath, f.Config.Timeout)
+	default:
+		err = net.UnknownNetworkError(f.Config.FluentNetwork)
+	}
 	return
 }
 
