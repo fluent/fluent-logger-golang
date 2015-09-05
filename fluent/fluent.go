@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net"
 	"reflect"
@@ -42,7 +43,7 @@ type Fluent struct {
 	conn         io.WriteCloser
 	pending      []byte
 	reconnecting bool
-	mu           sync.Mutex
+	mu           sync.RWMutex
 }
 
 // New creates a new Logger.
@@ -104,12 +105,12 @@ func New(config Config) (f *Fluent, err error) {
 //  }
 //  f.Post("tag_name", structData)
 //
-func (f *Fluent) Post(tag string, message interface{}) error {
+func (f *Fluent) Post(tag string, message interface{}) (int, error) {
 	timeNow := time.Now()
 	return f.PostWithTime(tag, timeNow, message)
 }
 
-func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) error {
+func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) (int, error) {
 	if len(f.TagPrefix) > 0 {
 		tag = f.TagPrefix + "." + tag
 	}
@@ -135,9 +136,9 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 	}
 
 	if msgtype.Kind() != reflect.Map {
-		return errors.New("messge must be a map")
+		return 0, errors.New("messge must be a map")
 	} else if msgtype.Key().Kind() != reflect.String {
-		return errors.New("map keys must be strings")
+		return 0, errors.New("map keys must be strings")
 	}
 
 	kv := make(map[string]interface{})
@@ -148,13 +149,13 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 	return f.EncodeAndPostData(tag, tm, kv)
 }
 
-func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message interface{}) error {
+func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message interface{}) (int, error) {
 	if data, dumperr := f.EncodeData(tag, tm, message); dumperr != nil {
-		return fmt.Errorf("fluent#EncodeAndPostData: can't convert '%s' to msgpack:%s", message, dumperr)
+		return 0, fmt.Errorf("fluent#EncodeAndPostData: can't convert '%s' to msgpack:%s", message, dumperr)
 		// fmt.Println("fluent#Post: can't convert to msgpack:", message, dumperr)
 	} else {
 		f.PostRawData(data)
-		return nil
+		return len(data), nil
 	}
 }
 
@@ -164,12 +165,19 @@ func (f *Fluent) PostRawData(data []byte) {
 	f.mu.Unlock()
 	if err := f.send(); err != nil {
 		f.close()
-		if len(f.pending) > f.Config.BufferLimit {
+		if f.lenPending() > f.Config.BufferLimit {
 			f.flushBuffer()
 		}
 	} else {
 		f.flushBuffer()
 	}
+}
+
+func (f *Fluent) lenPending() int {
+	f.mu.RLock()
+	length := len(f.pending)
+	f.mu.RUnlock()
+	return length
 }
 
 func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data []byte, err error) {
@@ -181,7 +189,7 @@ func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data
 
 // Close closes the connection.
 func (f *Fluent) Close() (err error) {
-	if len(f.pending) > 0 {
+	if f.lenPending() > 0 {
 		err = f.send()
 	}
 	f.close()
@@ -190,10 +198,9 @@ func (f *Fluent) Close() (err error) {
 
 // close closes the connection.
 func (f *Fluent) close() (err error) {
-	if f.conn != nil {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-	} else {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.conn == nil {
 		return
 	}
 	if f.conn != nil {
@@ -205,6 +212,8 @@ func (f *Fluent) close() (err error) {
 
 // connect establishes a new connection using the specified transport.
 func (f *Fluent) connect() (err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if strings.HasPrefix(f.Config.FluentNetwork, "unix") {
 		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentSocketPath, f.Config.Timeout)
 		return
@@ -218,44 +227,40 @@ func e(x, y float64) int {
 }
 
 func (f *Fluent) reconnect() {
-	go func() {
-		for i := 0; ; i++ {
-			err := f.connect()
-			if err == nil {
-				f.mu.Lock()
-				f.reconnecting = false
-				f.mu.Unlock()
-				break
-			} else {
-				if i == f.Config.MaxRetry {
-					panic("fluent#reconnect: failed to reconnect!")
-				}
-				waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
-				time.Sleep(time.Duration(waitTime) * time.Millisecond)
+	for i := 0; ; i++ {
+		err := f.connect()
+		if err == nil {
+			f.mu.Lock()
+			f.reconnecting = false
+			f.mu.Unlock()
+			break
+		} else {
+			if i == f.Config.MaxRetry {
+				log.Fatalf("fluent#reconnect: failed to reconnect! MaxRetry:%v", f.Config.MaxRetry)
 			}
+			waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
+			time.Sleep(time.Duration(waitTime) * time.Millisecond)
 		}
-	}()
+	}
 }
 
 func (f *Fluent) flushBuffer() {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.pending = f.pending[0:0]
+	f.mu.Unlock()
 }
 
 func (f *Fluent) send() (err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.conn == nil {
 		if f.reconnecting == false {
-			f.mu.Lock()
 			f.reconnecting = true
-			f.mu.Unlock()
-			f.reconnect()
+			go f.reconnect()
 		}
 		err = errors.New("fluent#send: can't send logs, client is reconnecting")
 	} else {
-		f.mu.Lock()
 		_, err = f.conn.Write(f.pending)
-		f.mu.Unlock()
 	}
 	return
 }
