@@ -2,11 +2,12 @@ package fluent
 
 import (
 	"bytes"
-	"github.com/bmizerany/assert"
 	"net"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/bmizerany/assert"
 )
 
 const (
@@ -63,6 +64,45 @@ func Test_New_itShouldUseDefaultConfigValuesIfNoOtherProvided(t *testing.T) {
 	assert.Equal(t, f.Config.FluentHost, defaultHost)
 	assert.Equal(t, f.Config.Timeout, defaultTimeout)
 	assert.Equal(t, f.Config.BufferLimit, defaultBufferLimit)
+	assert.Equal(t, f.Config.FluentNetwork, defaultNetwork)
+	assert.Equal(t, f.Config.FluentSocketPath, defaultSocketPath)
+}
+
+func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
+
+	socketFile := "/tmp/fluent-logger-golang.sock"
+	network := "unix"
+	l, err := net.Listen(network, socketFile)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer l.Close()
+
+	f, err := New(Config{
+		FluentNetwork:    network,
+		FluentSocketPath: socketFile})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer f.Close()
+	assert.Equal(t, f.Config.FluentNetwork, network)
+	assert.Equal(t, f.Config.FluentSocketPath, socketFile)
+
+	socketFile = "/tmp/fluent-logger-golang-xxx.sock"
+	network = "unixxxx"
+	fUnknown, err := New(Config{
+		FluentNetwork:    network,
+		FluentSocketPath: socketFile})
+	if _, ok := err.(net.UnknownNetworkError); !ok {
+		t.Errorf("err type: %T", err)
+	}
+	if err == nil {
+		t.Error(err)
+		fUnknown.Close()
+		return
+	}
 }
 
 func Test_New_itShouldUseConfigValuesFromArguments(t *testing.T) {

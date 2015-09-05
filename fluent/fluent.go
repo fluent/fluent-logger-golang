@@ -9,7 +9,6 @@ import (
 	"net"
 	"reflect"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
@@ -214,11 +213,14 @@ func (f *Fluent) close() (err error) {
 func (f *Fluent) connect() (err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if strings.HasPrefix(f.Config.FluentNetwork, "unix") {
+	switch f.Config.FluentNetwork {
+	case "tcp":
+		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), f.Config.Timeout)
+	case "unix":
 		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentSocketPath, f.Config.Timeout)
-		return
+	default:
+		err = net.UnknownNetworkError(f.Config.FluentNetwork)
 	}
-	f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), f.Config.Timeout)
 	return
 }
 
