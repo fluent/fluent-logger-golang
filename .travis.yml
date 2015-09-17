@@ -7,6 +7,7 @@ install:
   - go get github.com/bmizerany/assert
   - go get github.com/philhofer/fwd
   - go get github.com/tinylib/msgp
+  - go get golang.org/x/net/context
 sudo: false
 matrix:
   allow_failures:

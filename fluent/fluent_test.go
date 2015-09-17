@@ -111,17 +111,17 @@ func Test_New_itShouldUseConfigValuesFromArguments(t *testing.T) {
 	assert.Equal(t, f.Config.FluentHost, "foobarhost")
 }
 
-func Test_send_WritePendingToConn(t *testing.T) {
-	f := &Fluent{Config: Config{}, reconnecting: false}
+func Test_send_WriteBufferToConn(t *testing.T) {
+	f := &Fluent{Config: Config{}}
 
 	buf := &Conn{}
 	f.conn = buf
 
 	msg := "This is test writing."
 	bmsg := []byte(msg)
-	f.pending = append(f.pending, bmsg...)
+	f.buf = append(f.buf, bmsg...)
 
-	err := f.send()
+	err := f.send(f.buf)
 	if err != nil {
 		t.Error(err)
 	}
