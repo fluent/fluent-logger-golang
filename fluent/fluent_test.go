@@ -46,6 +46,10 @@ func init() {
 	}()
 }
 
+func setupBenchFluent() (*Fluent, error) {
+	return New(Config{FluentHost: "0.0.0.0", FluentPort: 6666})
+}
+
 func EchoFunc(conn net.Conn) {
 	for {
 		buf := make([]byte, RECV_BUF_LEN)
@@ -134,7 +138,7 @@ func Test_send_WritePendingToConn(t *testing.T) {
 
 func Benchmark_PostWithShortMessage(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -150,7 +154,7 @@ func Benchmark_PostWithShortMessage(b *testing.B) {
 
 func Benchmark_LogWithChunks(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -166,7 +170,7 @@ func Benchmark_LogWithChunks(b *testing.B) {
 
 func Benchmark_PostWithStruct(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -186,7 +190,7 @@ func Benchmark_PostWithStruct(b *testing.B) {
 
 func Benchmark_PostWithStructTaggedAsCodec(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -206,7 +210,7 @@ func Benchmark_PostWithStructTaggedAsCodec(b *testing.B) {
 
 func Benchmark_PostWithStructWithoutTag(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -226,7 +230,7 @@ func Benchmark_PostWithStructWithoutTag(b *testing.B) {
 
 func Benchmark_PostWithMapString(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -244,7 +248,7 @@ func Benchmark_PostWithMapString(b *testing.B) {
 
 func Benchmark_PostWithMapSlice(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -262,7 +266,7 @@ func Benchmark_PostWithMapSlice(b *testing.B) {
 
 func Benchmark_PostWithMapStringAndTime(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
