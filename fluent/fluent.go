@@ -43,10 +43,15 @@ type Fluent struct {
 	Config
 	conn   io.WriteCloser
 	buf    []byte
-	postCh chan []byte
+	postCh chan post
 	result chan error
 	ctx    context.Context
 	cancel context.CancelFunc
+}
+
+type post struct {
+	result chan error
+	data   []byte
 }
 
 // New creates a new Logger.
@@ -80,7 +85,7 @@ func New(config Config) (f *Fluent, err error) {
 	}
 	f = &Fluent{
 		Config: config,
-		postCh: make(chan []byte),
+		postCh: make(chan post),
 		result: make(chan error),
 	}
 
@@ -189,8 +194,11 @@ func (f *Fluent) PostRawDataWithResult(data []byte) (err error) {
 	}
 	buf := make([]byte, len(data))
 	copy(buf, data)
+	postResult := make(chan error)
 	select {
-	case f.postCh <- buf:
+	case f.postCh <- post{result: postResult, data: buf}:
+		err := <-postResult
+		return err
 	case err = <-f.result:
 		f.close()
 	}
@@ -282,11 +290,13 @@ func (f *Fluent) spooler(ctx context.Context) {
 			receive = sendChCh
 		}
 		select {
-		case data := <-f.postCh:
-			f.buf = append(f.buf, data...)
+		case p := <-f.postCh:
 			if len(f.buf) > f.Config.BufferLimit {
-				f.flushBuffer()
+				p.result <- fmt.Errorf("fluent#spooler: Post has failed, buffer size exceeds the limit. [ buffer size: %d > BufferLimit: %d ]", len(f.buf), f.Config.BufferLimit)
+				break
 			}
+			f.buf = append(f.buf, p.data...)
+			p.result <- nil
 		case sendCh := <-receive:
 			buf := make([]byte, len(f.buf))
 			copy(buf, f.buf)
@@ -305,6 +315,7 @@ func (f *Fluent) spooler(ctx context.Context) {
 		}
 	}
 }
+
 func (f *Fluent) sender(ctx context.Context, result chan error) chan chan []byte {
 	sendCh := make(chan chan []byte)
 	go func() {
