@@ -94,8 +94,10 @@ func New(config Config) (f *Fluent, err error) {
 	if err = f.connect(); err != nil {
 		return
 	}
-	if !f.SyncPost {
-		go f.spooler(f.ctx)
+	if f.SyncPost {
+		go f.syncPostWorker(f.ctx)
+	} else {
+		go f.spoolWorker(f.ctx)
 	}
 
 	return
@@ -189,9 +191,6 @@ func (f *Fluent) PostRawData(data []byte) {
 }
 
 func (f *Fluent) PostRawDataWithResult(data []byte) (err error) {
-	if f.SyncPost {
-		return f.send(data)
-	}
 	buf := make([]byte, len(data))
 	copy(buf, data)
 	postResult := make(chan error)
@@ -281,9 +280,9 @@ func (f *Fluent) send(data []byte) (err error) {
 	}
 }
 
-func (f *Fluent) spooler(ctx context.Context) {
+func (f *Fluent) spoolWorker(ctx context.Context) {
 	senderResult := make(chan error)
-	sendChCh := f.sender(ctx, senderResult)
+	sendChCh := f.sendWorker(ctx, senderResult)
 	for {
 		var receive chan chan []byte
 		if len(f.buf) > 0 {
@@ -316,7 +315,20 @@ func (f *Fluent) spooler(ctx context.Context) {
 	}
 }
 
-func (f *Fluent) sender(ctx context.Context, result chan error) chan chan []byte {
+func (f *Fluent) syncPostWorker(ctx context.Context) {
+	for {
+		select {
+		case p := <-f.postCh:
+			err := f.send(p.data)
+			p.result <- err
+		case <-ctx.Done():
+			f.result <- ctx.Err()
+			return
+		}
+	}
+}
+
+func (f *Fluent) sendWorker(ctx context.Context, result chan error) chan chan []byte {
 	sendCh := make(chan chan []byte)
 	go func() {
 		bufCh := make(chan []byte)
