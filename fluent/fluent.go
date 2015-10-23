@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"net"
 	"reflect"
@@ -104,12 +103,12 @@ func New(config Config) (f *Fluent, err error) {
 //  }
 //  f.Post("tag_name", structData)
 //
-func (f *Fluent) Post(tag string, message interface{}) (int, error) {
+func (f *Fluent) Post(tag string, message interface{}) error {
 	timeNow := time.Now()
 	return f.PostWithTime(tag, timeNow, message)
 }
 
-func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) (int, error) {
+func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) error {
 	if len(f.TagPrefix) > 0 {
 		tag = f.TagPrefix + "." + tag
 	}
@@ -135,9 +134,9 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) (in
 	}
 
 	if msgtype.Kind() != reflect.Map {
-		return 0, errors.New("messge must be a map")
+		return errors.New("messge must be a map")
 	} else if msgtype.Key().Kind() != reflect.String {
-		return 0, errors.New("map keys must be strings")
+		return errors.New("map keys must be strings")
 	}
 
 	kv := make(map[string]interface{})
@@ -148,13 +147,13 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) (in
 	return f.EncodeAndPostData(tag, tm, kv)
 }
 
-func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message interface{}) (int, error) {
+func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message interface{}) error {
 	if data, dumperr := f.EncodeData(tag, tm, message); dumperr != nil {
-		return 0, fmt.Errorf("fluent#EncodeAndPostData: can't convert '%s' to msgpack:%s", message, dumperr)
+		return fmt.Errorf("fluent#EncodeAndPostData: can't convert '%s' to msgpack:%s", message, dumperr)
 		// fmt.Println("fluent#Post: can't convert to msgpack:", message, dumperr)
 	} else {
 		f.PostRawData(data)
-		return len(data), nil
+		return nil
 	}
 }
 
@@ -238,7 +237,7 @@ func (f *Fluent) reconnect() {
 			break
 		} else {
 			if i == f.Config.MaxRetry {
-				log.Fatalf("fluent#reconnect: failed to reconnect! MaxRetry:%v", f.Config.MaxRetry)
+				panic("fluent#reconnect: failed to reconnect!")
 			}
 			waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
 			time.Sleep(time.Duration(waitTime) * time.Millisecond)
