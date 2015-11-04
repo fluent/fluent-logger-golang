@@ -41,7 +41,7 @@ func init() {
 				println("Error accept:", err.Error())
 				return
 			}
-			go EchoFunc(conn)
+			go DoRead(conn)
 		}
 	}()
 }
@@ -50,7 +50,7 @@ func setupBenchFluent() (*Fluent, error) {
 	return New(Config{FluentHost: "0.0.0.0", FluentPort: 6666})
 }
 
-func EchoFunc(conn net.Conn) {
+func DoRead(conn net.Conn) {
 	for {
 		buf := make([]byte, RECV_BUF_LEN)
 		_, err := conn.Read(buf)
