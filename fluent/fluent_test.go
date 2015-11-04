@@ -58,7 +58,6 @@ func EchoFunc(conn net.Conn) {
 			println("Error reading:", err.Error())
 			return
 		}
-		println("received ", n, " bytes of data =", string(buf))
 	}
 }
 
