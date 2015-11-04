@@ -53,7 +53,7 @@ func setupBenchFluent() (*Fluent, error) {
 func EchoFunc(conn net.Conn) {
 	for {
 		buf := make([]byte, RECV_BUF_LEN)
-		n, err := conn.Read(buf)
+		_, err := conn.Read(buf)
 		if err != nil {
 			println("Error reading:", err.Error())
 			return
