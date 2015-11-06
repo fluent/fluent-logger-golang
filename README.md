@@ -41,7 +41,7 @@ func main() {
   tag := "myapp.access"
   var data = map[string]string{
     "foo":  "bar",
-    "hoge": "hoge"
+    "hoge": "hoge",
   }
   error := logger.Post(tag, data)
   // error := logger.Post(tag, time.Time.Now(), data)
