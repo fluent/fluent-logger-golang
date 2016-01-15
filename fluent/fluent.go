@@ -34,6 +34,7 @@ type Config struct {
 	RetryWait        int
 	MaxRetry         int
 	TagPrefix        string
+	AsyncConnect     bool
 }
 
 type Fluent struct {
@@ -70,8 +71,13 @@ func New(config Config) (f *Fluent, err error) {
 	if config.MaxRetry == 0 {
 		config.MaxRetry = defaultMaxRetry
 	}
-	f = &Fluent{Config: config, reconnecting: false}
-	err = f.connect()
+	if config.AsyncConnect {
+		f = &Fluent{Config: config, reconnecting: true}
+		f.reconnect()
+	} else {
+		f = &Fluent{Config: config, reconnecting: false}
+		err = f.connect()
+	}
 	return
 }
 
