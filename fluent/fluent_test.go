@@ -111,6 +111,11 @@ func Test_New_itShouldUseConfigValuesFromArguments(t *testing.T) {
 	assert.Equal(t, f.Config.FluentHost, "foobarhost")
 }
 
+func Test_New_itShouldUseConfigValuesFromMashalAsJSONArgument(t *testing.T) {
+	f, _ := New(Config{MarshalAsJSON: true})
+	assert.Equal(t, f.Config.MarshalAsJSON, true)
+}
+
 func Test_send_WritePendingToConn(t *testing.T) {
 	f := &Fluent{Config: Config{}, reconnecting: false}
 
