@@ -137,6 +137,35 @@ func Test_send_WritePendingToConn(t *testing.T) {
 	}
 }
 
+func Test_EncodeAndPOST(t *testing.T) {
+	f := &Fluent{Config: Config{}, reconnecting: false}
+
+	buf := &Conn{}
+	f.conn = buf
+
+	tag := "tag"
+	var data = map[string]string{
+		"foo":  "bar",
+		"hoge": "hoge"}
+	tm := time.Unix(1267867237, 0)
+	timeUnix := tm.Unix()
+	result, err := f.EncodeData(tag, tm, data)
+	msg := Message{Tag: tag, Time: timeUnix, Record: data}
+
+	if err != nil {
+		t.Error(err)
+	}
+	expected, err := msg.MarshalMsg(nil)
+	actual := string(result)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if actual != string(expected) {
+		t.Errorf("got %s, except %s", actual, expected)
+	}
+}
+
 func Test_EncodeAndPOSTAsJSON(t *testing.T) {
 	f := &Fluent{Config: Config{MarshalAsJSON: true}, reconnecting: false}
 
