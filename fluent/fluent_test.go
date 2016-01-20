@@ -137,6 +137,28 @@ func Test_send_WritePendingToConn(t *testing.T) {
 	}
 }
 
+func Test_EncodeAndPOSTAsJSON(t *testing.T) {
+	f := &Fluent{Config: Config{MarshalAsJSON: true}, reconnecting: false}
+
+	buf := &Conn{}
+	f.conn = buf
+
+	var data = map[string]string{
+		"foo":  "bar",
+		"hoge": "hoge"}
+	tm := time.Unix(1267867237, 0)
+	result, err := f.EncodeData("tag", tm, data)
+
+	if err != nil {
+		t.Error(err)
+	}
+	expected := `["tag",1267867237,{"foo":"bar","hoge":"hoge"}]`
+	actual := string(result)
+	if actual != expected {
+		t.Errorf("got %s, except %s", actual, expected)
+	}
+}
+
 func Benchmark_PostWithShortMessage(b *testing.B) {
 	b.StopTimer()
 	f, err := New(Config{})
