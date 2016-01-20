@@ -137,7 +137,7 @@ func Test_send_WritePendingToConn(t *testing.T) {
 	}
 }
 
-func Test_EncodeAndPOST(t *testing.T) {
+func Test_MarshalAsMsgpack(t *testing.T) {
 	f := &Fluent{Config: Config{}, reconnecting: false}
 
 	buf := &Conn{}
@@ -166,7 +166,7 @@ func Test_EncodeAndPOST(t *testing.T) {
 	}
 }
 
-func Test_EncodeAndPOSTAsJSON(t *testing.T) {
+func Test_MarshalAsJSON(t *testing.T) {
 	f := &Fluent{Config: Config{MarshalAsJSON: true}, reconnecting: false}
 
 	buf := &Conn{}
