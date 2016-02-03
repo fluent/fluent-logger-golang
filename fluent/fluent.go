@@ -189,7 +189,7 @@ type MessageChunk struct {
 // So, it should write JSON marshaler by hand.
 func (chunk *MessageChunk) MarshalJSON() ([]byte, error) {
 	data, err := json.Marshal(chunk.message.Record)
-	return []byte(fmt.Sprintf("[\"%s\", %d, %s]", chunk.message.Tag,
+	return []byte(fmt.Sprintf("[\"%s\",%d,%s,null]", chunk.message.Tag,
 		chunk.message.Time, data)), err
 }
 

@@ -184,7 +184,7 @@ func Test_MarshalAsJSON(t *testing.T) {
 		t.Error(err)
 	}
 	// json.Encode marshals map keys in the order, so this expectation is safe
-	expected := `["tag",1267867237,{"foo":"bar","hoge":"hoge"}]`
+	expected := `["tag",1267867237,{"foo":"bar","hoge":"hoge"},null]`
 	actual := string(result)
 	if actual != expected {
 		t.Errorf("got %s, except %s", actual, expected)
