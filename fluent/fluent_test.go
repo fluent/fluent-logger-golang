@@ -153,21 +153,18 @@ func Test_MarshalAsMsgpack(t *testing.T) {
 		"foo":  "bar",
 		"hoge": "hoge"}
 	tm := time.Unix(1267867237, 0)
-	timeUnix := tm.Unix()
 	result, err := f.EncodeData(tag, tm, data)
-	msg := Message{Tag: tag, Time: timeUnix, Record: data}
 
 	if err != nil {
 		t.Error(err)
 	}
-	expected, err := msg.MarshalMsg(nil)
 	actual := string(result)
-	if err != nil {
-		t.Error(err)
-	}
 
-	if actual != string(expected) {
-		t.Errorf("got %s, except %s", actual, expected)
+	// map entries are disordered in golang
+	expected1 := "\x94\xA3tag\xD2K\x92\u001Ee\x82\xA3foo\xA3bar\xA4hoge\xA4hoge\xC0"
+	expected2 := "\x94\xA3tag\xD2K\x92\u001Ee\x82\xA4hoge\xA4hoge\xA3foo\xA3bar\xC0"
+	if actual != expected1 && actual != expected2 {
+		t.Errorf("got %x,\n         except %x\n             or %x", actual, expected1, expected2)
 	}
 }
 
@@ -186,6 +183,7 @@ func Test_MarshalAsJSON(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	// json.Encode marshals map keys in the order, so this expectation is safe
 	expected := `["tag",1267867237,{"foo":"bar","hoge":"hoge"}]`
 	actual := string(result)
 	if actual != expected {
