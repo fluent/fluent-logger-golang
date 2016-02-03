@@ -111,6 +111,11 @@ func Test_New_itShouldUseConfigValuesFromArguments(t *testing.T) {
 	assert.Equal(t, f.Config.FluentHost, "foobarhost")
 }
 
+func Test_New_itShouldUseConfigValuesFromMashalAsJSONArgument(t *testing.T) {
+	f, _ := New(Config{MarshalAsJSON: true})
+	assert.Equal(t, f.Config.MarshalAsJSON, true)
+}
+
 func Test_send_WritePendingToConn(t *testing.T) {
 	f := &Fluent{Config: Config{}, reconnecting: false}
 
@@ -132,9 +137,76 @@ func Test_send_WritePendingToConn(t *testing.T) {
 	}
 }
 
+func Test_MarshalAsMsgpack(t *testing.T) {
+	f := &Fluent{Config: Config{}, reconnecting: false}
+
+	buf := &Conn{}
+	f.conn = buf
+
+	tag := "tag"
+	var data = map[string]string{
+		"foo":  "bar",
+		"hoge": "hoge"}
+	tm := time.Unix(1267867237, 0)
+	timeUnix := tm.Unix()
+	result, err := f.EncodeData(tag, tm, data)
+	msg := Message{Tag: tag, Time: timeUnix, Record: data}
+
+	if err != nil {
+		t.Error(err)
+	}
+	expected, err := msg.MarshalMsg(nil)
+	actual := string(result)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if actual != string(expected) {
+		t.Errorf("got %s, except %s", actual, expected)
+	}
+}
+
+func Test_MarshalAsJSON(t *testing.T) {
+	f := &Fluent{Config: Config{MarshalAsJSON: true}, reconnecting: false}
+
+	buf := &Conn{}
+	f.conn = buf
+
+	var data = map[string]string{
+		"foo":  "bar",
+		"hoge": "hoge"}
+	tm := time.Unix(1267867237, 0)
+	result, err := f.EncodeData("tag", tm, data)
+
+	if err != nil {
+		t.Error(err)
+	}
+	expected := `["tag",1267867237,{"foo":"bar","hoge":"hoge"}]`
+	actual := string(result)
+	if actual != expected {
+		t.Errorf("got %s, except %s", actual, expected)
+	}
+}
+
 func Benchmark_PostWithShortMessage(b *testing.B) {
 	b.StopTimer()
 	f, err := New(Config{})
+	if err != nil {
+		panic(err)
+	}
+
+	b.StartTimer()
+	data := map[string]string{"message": "Hello World"}
+	for i := 0; i < b.N; i++ {
+		if err := f.Post("tag", data); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func Benchmark_PostWithShortMessageMarshalAsJSON(b *testing.B) {
+	b.StopTimer()
+	f, err := New(Config{MarshalAsJSON: true})
 	if err != nil {
 		panic(err)
 	}

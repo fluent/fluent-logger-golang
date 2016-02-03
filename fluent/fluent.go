@@ -1,6 +1,7 @@
 package fluent
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -35,6 +36,7 @@ type Config struct {
 	MaxRetry         int
 	TagPrefix        string
 	AsyncConnect     bool
+	MarshalAsJSON    bool
 }
 
 type Fluent struct {
@@ -177,10 +179,30 @@ func (f *Fluent) PostRawData(data []byte) {
 	}
 }
 
+// For sending forward protocol adopted JSON
+type MessageChunk struct {
+	message Message
+}
+
+// Golang default marshaler does not support
+// ["value", "value2", {"key":"value"}] style marshaling.
+// So, it should write JSON marshaler by hand.
+func (chunk *MessageChunk) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(chunk.message.Record)
+	return []byte(fmt.Sprintf("[\"%s\", %d, %s]", chunk.message.Tag,
+		chunk.message.Time, data)), err
+}
+
 func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data []byte, err error) {
 	timeUnix := tm.Unix()
-	msg := &Message{Tag: tag, Time: timeUnix, Record: message}
-	data, err = msg.MarshalMsg(nil)
+	if f.Config.MarshalAsJSON {
+		msg := Message{Tag: tag, Time: timeUnix, Record: message}
+		chunk := &MessageChunk{message: msg}
+		data, err = json.Marshal(chunk)
+	} else {
+		msg := &Message{Tag: tag, Time: timeUnix, Record: message}
+		data, err = msg.MarshalMsg(nil)
+	}
 	return
 }
 
