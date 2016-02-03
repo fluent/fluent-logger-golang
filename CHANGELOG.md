@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.1.0
+ * Add support for unix domain socket
+ * Add asynchronous client creation
+
 ## 1.0.0
  * Fix API of `Post` and `PostWithTime` to return error when encoding
  * Add argument checks to get `map` with string keys and `struct` only
