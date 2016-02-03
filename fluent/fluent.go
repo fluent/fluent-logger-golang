@@ -26,17 +26,17 @@ const (
 )
 
 type Config struct {
-	FluentPort       int
-	FluentHost       string
-	FluentNetwork    string
-	FluentSocketPath string
-	Timeout          time.Duration
-	BufferLimit      int
-	RetryWait        int
-	MaxRetry         int
-	TagPrefix        string
-	AsyncConnect     bool
-	MarshalAsJSON    bool
+	FluentPort       int           `json:"fluent_port"`
+	FluentHost       string        `json:"fluent_host"`
+	FluentNetwork    string        `json:"fluent_network"`
+	FluentSocketPath string        `json:"fluent_socket_path"`
+	Timeout          time.Duration `json:"timeout"`
+	BufferLimit      int           `json:"buffer_limit"`
+	RetryWait        int           `json:"retry_wait"`
+	MaxRetry         int           `json:"max_retry"`
+	TagPrefix        string        `json:"tag_prefix"`
+	AsyncConnect     bool          `json:"async_connect"`
+	MarshalAsJSON    bool          `json:"marshal_as_json"`
 }
 
 type Fluent struct {

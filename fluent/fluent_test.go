@@ -2,7 +2,10 @@ package fluent
 
 import (
 	"bytes"
+	"encoding/json"
+	"io/ioutil"
 	"net"
+	"reflect"
 	"runtime"
 	"testing"
 	"time"
@@ -69,7 +72,9 @@ func Test_New_itShouldUseDefaultConfigValuesIfNoOtherProvided(t *testing.T) {
 }
 
 func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
-
+	if runtime.GOOS == "windows" {
+		t.Skip("windows not supported")
+	}
 	socketFile := "/tmp/fluent-logger-golang.sock"
 	network := "unix"
 	l, err := net.Listen(network, socketFile)
@@ -185,6 +190,36 @@ func Test_MarshalAsJSON(t *testing.T) {
 	actual := string(result)
 	if actual != expected {
 		t.Errorf("got %s, except %s", actual, expected)
+	}
+}
+
+func TestJsonConfig(t *testing.T) {
+	b, err := ioutil.ReadFile(`testdata/config.json`)
+	if err != nil {
+		t.Error(err)
+	}
+	var got Config
+	expect := Config{
+		FluentPort:       8888,
+		FluentHost:       "localhost",
+		FluentNetwork:    "tcp",
+		FluentSocketPath: "/var/tmp/fluent.sock",
+		Timeout:          3000,
+		BufferLimit:      200,
+		RetryWait:        5,
+		MaxRetry:         3,
+		TagPrefix:        "fluent",
+		AsyncConnect:     false,
+		MarshalAsJSON:    true,
+	}
+
+	err = json.Unmarshal(b, &got)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !reflect.DeepEqual(expect, got) {
+		t.Errorf("got %v, except %v", got, expect)
 	}
 }
 
