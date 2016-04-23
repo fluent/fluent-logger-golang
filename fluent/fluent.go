@@ -198,9 +198,6 @@ func (f *Fluent) Close() (err error) {
 func (f *Fluent) close() (err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.conn == nil {
-		return
-	}
 	if f.conn != nil {
 		f.conn.Close()
 		f.conn = nil
@@ -210,16 +207,18 @@ func (f *Fluent) close() (err error) {
 
 // connect establishes a new connection using the specified transport.
 func (f *Fluent) connect() (err error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	var conn net.Conn
 	switch f.Config.FluentNetwork {
 	case "tcp":
-		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), f.Config.Timeout)
+		conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), f.Config.Timeout)
 	case "unix":
-		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentSocketPath, f.Config.Timeout)
+		conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentSocketPath, f.Config.Timeout)
 	default:
 		err = net.UnknownNetworkError(f.Config.FluentNetwork)
 	}
+	f.mu.Lock()
+	f.conn = conn
+	f.mu.Unlock()
 	return
 }
 
@@ -234,14 +233,13 @@ func (f *Fluent) reconnect() {
 			f.mu.Lock()
 			f.reconnecting = false
 			f.mu.Unlock()
-			break
-		} else {
-			if i == f.Config.MaxRetry {
-				panic("fluent#reconnect: failed to reconnect!")
-			}
-			waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
-			time.Sleep(time.Duration(waitTime) * time.Millisecond)
+			return
 		}
+		if i == f.Config.MaxRetry {
+			panic("fluent#reconnect: failed to reconnect!")
+		}
+		waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
+		time.Sleep(time.Duration(waitTime) * time.Millisecond)
 	}
 }
 
