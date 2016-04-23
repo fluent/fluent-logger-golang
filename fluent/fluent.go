@@ -1,6 +1,7 @@
 package fluent
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -25,15 +26,17 @@ const (
 )
 
 type Config struct {
-	FluentPort       int
-	FluentHost       string
-	FluentNetwork    string
-	FluentSocketPath string
-	Timeout          time.Duration
-	BufferLimit      int
-	RetryWait        int
-	MaxRetry         int
-	TagPrefix        string
+	FluentPort       int           `json:"fluent_port"`
+	FluentHost       string        `json:"fluent_host"`
+	FluentNetwork    string        `json:"fluent_network"`
+	FluentSocketPath string        `json:"fluent_socket_path"`
+	Timeout          time.Duration `json:"timeout"`
+	BufferLimit      int           `json:"buffer_limit"`
+	RetryWait        int           `json:"retry_wait"`
+	MaxRetry         int           `json:"max_retry"`
+	TagPrefix        string        `json:"tag_prefix"`
+	AsyncConnect     bool          `json:"async_connect"`
+	MarshalAsJSON    bool          `json:"marshal_as_json"`
 }
 
 type Fluent struct {
@@ -70,8 +73,13 @@ func New(config Config) (f *Fluent, err error) {
 	if config.MaxRetry == 0 {
 		config.MaxRetry = defaultMaxRetry
 	}
-	f = &Fluent{Config: config, reconnecting: false}
-	err = f.connect()
+	if config.AsyncConnect {
+		f = &Fluent{Config: config, reconnecting: true}
+		f.reconnect()
+	} else {
+		f = &Fluent{Config: config, reconnecting: false}
+		err = f.connect()
+	}
 	return
 }
 
@@ -178,10 +186,30 @@ func (f *Fluent) lenPending() int {
 	return length
 }
 
+// For sending forward protocol adopted JSON
+type MessageChunk struct {
+	message Message
+}
+
+// Golang default marshaler does not support
+// ["value", "value2", {"key":"value"}] style marshaling.
+// So, it should write JSON marshaler by hand.
+func (chunk *MessageChunk) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(chunk.message.Record)
+	return []byte(fmt.Sprintf("[\"%s\",%d,%s,null]", chunk.message.Tag,
+		chunk.message.Time, data)), err
+}
+
 func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data []byte, err error) {
 	timeUnix := tm.Unix()
-	msg := &Message{Tag: tag, Time: timeUnix, Record: message}
-	data, err = msg.MarshalMsg(nil)
+	if f.Config.MarshalAsJSON {
+		msg := Message{Tag: tag, Time: timeUnix, Record: message}
+		chunk := &MessageChunk{message: msg}
+		data, err = json.Marshal(chunk)
+	} else {
+		msg := &Message{Tag: tag, Time: timeUnix, Record: message}
+		data, err = msg.MarshalMsg(nil)
+	}
 	return
 }
 
