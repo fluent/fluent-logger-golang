@@ -142,7 +142,7 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 	}
 
 	if msgtype.Kind() != reflect.Map {
-		return errors.New("messge must be a map")
+		return errors.New("message must be a map")
 	} else if msgtype.Key().Kind() != reflect.String {
 		return errors.New("map keys must be strings")
 	}
