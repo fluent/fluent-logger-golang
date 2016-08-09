@@ -44,7 +44,7 @@ type Fluent struct {
 	conn         io.WriteCloser
 	pending      []byte
 	reconnecting bool
-	mu           sync.Mutex
+	mu           sync.RWMutex
 }
 
 // New creates a new Logger.
@@ -171,12 +171,19 @@ func (f *Fluent) PostRawData(data []byte) {
 	f.mu.Unlock()
 	if err := f.send(); err != nil {
 		f.close()
-		if len(f.pending) > f.Config.BufferLimit {
+		if f.lenPending() > f.Config.BufferLimit {
 			f.flushBuffer()
 		}
 	} else {
 		f.flushBuffer()
 	}
+}
+
+func (f *Fluent) lenPending() int {
+	f.mu.RLock()
+	length := len(f.pending)
+	f.mu.RUnlock()
+	return length
 }
 
 // For sending forward protocol adopted JSON
@@ -208,7 +215,7 @@ func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data
 
 // Close closes the connection.
 func (f *Fluent) Close() (err error) {
-	if len(f.pending) > 0 {
+	if f.lenPending() > 0 {
 		err = f.send()
 	}
 	f.close()
@@ -217,12 +224,8 @@ func (f *Fluent) Close() (err error) {
 
 // close closes the connection.
 func (f *Fluent) close() (err error) {
-	if f.conn != nil {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-	} else {
-		return
-	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.conn != nil {
 		f.conn.Close()
 		f.conn = nil
@@ -232,14 +235,18 @@ func (f *Fluent) close() (err error) {
 
 // connect establishes a new connection using the specified transport.
 func (f *Fluent) connect() (err error) {
+	var conn net.Conn
 	switch f.Config.FluentNetwork {
 	case "tcp":
-		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), f.Config.Timeout)
+		conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), f.Config.Timeout)
 	case "unix":
-		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentSocketPath, f.Config.Timeout)
+		conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentSocketPath, f.Config.Timeout)
 	default:
 		err = net.UnknownNetworkError(f.Config.FluentNetwork)
 	}
+	f.mu.Lock()
+	f.conn = conn
+	f.mu.Unlock()
 	return
 }
 
@@ -248,44 +255,39 @@ func e(x, y float64) int {
 }
 
 func (f *Fluent) reconnect() {
-	go func() {
-		for i := 0; ; i++ {
-			err := f.connect()
-			if err == nil {
-				f.mu.Lock()
-				f.reconnecting = false
-				f.mu.Unlock()
-				break
-			} else {
-				if i == f.Config.MaxRetry {
-					panic("fluent#reconnect: failed to reconnect!")
-				}
-				waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
-				time.Sleep(time.Duration(waitTime) * time.Millisecond)
-			}
+	for i := 0; ; i++ {
+		err := f.connect()
+		if err == nil {
+			f.mu.Lock()
+			f.reconnecting = false
+			f.mu.Unlock()
+			return
 		}
-	}()
+		if i == f.Config.MaxRetry {
+			panic("fluent#reconnect: failed to reconnect!")
+		}
+		waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
+		time.Sleep(time.Duration(waitTime) * time.Millisecond)
+	}
 }
 
 func (f *Fluent) flushBuffer() {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.pending = f.pending[0:0]
+	f.mu.Unlock()
 }
 
 func (f *Fluent) send() (err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.conn == nil {
 		if f.reconnecting == false {
-			f.mu.Lock()
 			f.reconnecting = true
-			f.mu.Unlock()
-			f.reconnect()
+			go f.reconnect()
 		}
 		err = errors.New("fluent#send: can't send logs, client is reconnecting")
 	} else {
-		f.mu.Lock()
 		_, err = f.conn.Write(f.pending)
-		f.mu.Unlock()
 	}
 	return
 }
