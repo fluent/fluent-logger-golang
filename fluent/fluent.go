@@ -168,19 +168,23 @@ func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message interface{}
 	if data, err = f.EncodeData(tag, tm, message); err != nil {
 		return fmt.Errorf("fluent#EncodeAndPostData: can't convert '%#v' to msgpack:%v", message, err)
 	}
-	f.PostRawData(data)
-	return nil
+	return f.postRawData(data)
 }
 
+// Deprecated: Use EncodeAndPostData instead
 func (f *Fluent) PostRawData(data []byte) {
-	if err := f.appendBuffer(data); err != nil {
-		// TODO: return err. Since it may change public API, doesn't fix for now.
-		return
-	}
+	f.postRawData(data)
+}
 
+func (f *Fluent) postRawData(data []byte) error {
+	if err := f.appendBuffer(data); err != nil {
+		return err
+	}
 	if err := f.send(); err != nil {
 		f.close()
+		return err
 	}
+	return nil
 }
 
 // For sending forward protocol adopted JSON
