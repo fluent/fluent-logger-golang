@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.2.0
+* Add `MarshalAsJSON` feature for `message` objects which can be marshaled as JSON
+* Fix a bug to panic for destination system outage
+
 ## 1.1.0
  * Add support for unix domain socket
  * Add asynchronous client creation
