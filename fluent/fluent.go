@@ -25,10 +25,6 @@ const (
 	defaultReconnectWaitIncreRate = 1.5
 )
 
-var (
-	errBufferOverflow = errors.New("Buffer full")
-)
-
 type Config struct {
 	FluentPort       int           `json:"fluent_port"`
 	FluentHost       string        `json:"fluent_host"`
@@ -149,9 +145,9 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 	}
 
 	if msgtype.Kind() != reflect.Map {
-		return errors.New("message must be a map")
+		return errors.New("fluent#PostWithTime: message must be a map")
 	} else if msgtype.Key().Kind() != reflect.String {
-		return errors.New("map keys must be strings")
+		return errors.New("fluent#PostWithTime: map keys must be strings")
 	}
 
 	kv := make(map[string]interface{})
@@ -228,7 +224,7 @@ func (f *Fluent) appendBuffer(data []byte) error {
 	f.mubuff.Lock()
 	defer f.mubuff.Unlock()
 	if len(f.pending)+len(data) > f.Config.BufferLimit {
-		return errBufferOverflow
+		return errors.New(fmt.Sprintf("fluent#appendBuffer: Buffer full, limit %v", f.Config.BufferLimit))
 	}
 	f.pending = append(f.pending, data...)
 	return nil
