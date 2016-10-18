@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/fluent/fluent-logger-golang/fluent"
-	// "../fluent"
+	"log"
+	"time"
+
+	"../fluent"
 )
 
 func main() {
@@ -16,9 +18,13 @@ func main() {
 	var data = map[string]string{
 		"foo":  "bar",
 		"hoge": "hoge"}
-	i := 0
-	for i < 100 {
-		logger.Post(tag, data)
-		i = i + 1
+	for i := 0; i < 100; i++ {
+		e := logger.Post(tag, data)
+		if e != nil {
+			log.Println("Error while posting log: ", e)
+		} else {
+			log.Println("Success to post log")
+		}
+		time.Sleep(1000 * time.Millisecond)
 	}
 }

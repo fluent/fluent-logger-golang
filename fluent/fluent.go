@@ -254,7 +254,7 @@ func (f *Fluent) connect() (err error) {
 		err = net.UnknownNetworkError(f.Config.FluentNetwork)
 	}
 
-	if err != nil {
+	if err == nil {
 		f.reconnecting = false
 	}
 	return
