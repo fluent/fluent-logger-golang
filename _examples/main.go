@@ -2,15 +2,13 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"../fluent"
-
-	"github.com/Sirupsen/logrus"
 )
 
 func main() {
-	logrus.SetLevel(logrus.DebugLevel)
 	logger, err := fluent.New(fluent.Config{FluentPort: 24224, FluentHost: "127.0.0.1"})
 	if err != nil {
 		fmt.Println(err)
@@ -24,9 +22,9 @@ func main() {
 	for i < 100 {
 		e := logger.Post(tag, data)
 		if e != nil {
-			logrus.Debugf("Error while posting log: %s", e)
+			log.Println("Error while posting log: ", e)
 		} else {
-			logrus.Debug("Success to post log")
+			log.Println("Success to post log")
 		}
 		i = i + 1
 		time.Sleep(1000 * time.Millisecond)
