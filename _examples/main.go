@@ -18,15 +18,13 @@ func main() {
 	var data = map[string]string{
 		"foo":  "bar",
 		"hoge": "hoge"}
-	i := 0
-	for i < 100 {
+	for i := 0; i < 100; i++ {
 		e := logger.Post(tag, data)
 		if e != nil {
 			log.Println("Error while posting log: ", e)
 		} else {
 			log.Println("Success to post log")
 		}
-		i = i + 1
 		time.Sleep(1000 * time.Millisecond)
 	}
 }
