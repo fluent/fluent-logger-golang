@@ -7,6 +7,7 @@ import (
 	"net"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -245,6 +246,118 @@ func TestAsyncConnect(t *testing.T) {
 		res.f.Close()
 	case <-time.After(time.Millisecond * 500):
 		t.Error("AsyncConnect must not block")
+	}
+}
+
+func Test_PostWithTime(t *testing.T) {
+	f, err := New(Config{
+		FluentPort:    6666,
+		AsyncConnect:  false,
+		MarshalAsJSON: true,     // easy to check equality
+		BufferLimit:   1 * 1024, // not to buffer over flow
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	var testData = []struct {
+		in  map[string]string
+		out string
+	}{
+		{
+			map[string]string{"foo": "bar"},
+			"[\"tag_name\",1482493046,{\"foo\":\"bar\"},null]",
+		},
+		{
+			map[string]string{"fuga": "bar", "hoge": "fuga"},
+			"[\"tag_name\",1482493046,{\"fuga\":\"bar\",\"hoge\":\"fuga\"},null]",
+		},
+	}
+	for _, tt := range testData {
+		buf := &Conn{}
+		f.conn = buf
+
+		err = f.PostWithTime("tag_name", time.Unix(1482493046, 0), tt.in)
+		if err != nil {
+			t.Errorf("in=%s, err=%s", tt.in, err)
+		}
+
+		rcv := buf.String()
+		if rcv != tt.out {
+			t.Errorf("got %s, except %s", rcv, tt.out)
+		}
+	}
+}
+
+func Test_BufferOverFlow(t *testing.T) {
+	f, err := New(Config{
+		FluentPort:    6666,
+		AsyncConnect:  false,
+		MarshalAsJSON: true,     // easy to check equality
+		BufferLimit:   1 * 1024, // to buffer over flow
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	var testData = []struct {
+		in  map[string]string
+		out string
+	}{
+		{
+			map[string]string{"k": strings.Repeat("v", 1024)},
+			"fluent#appendBuffer: Buffer full, limit 1024",
+		},
+	}
+	for _, tt := range testData {
+		err = f.PostWithTime("tag_name", time.Unix(1482493046, 0), tt.in)
+		if err.Error() != tt.out {
+			t.Errorf("got %s, except %s", err, tt.out)
+		}
+	}
+}
+
+func Test_Close(t *testing.T) {
+	f, err := New(Config{
+		FluentPort:    6666,
+		AsyncConnect:  false,
+		MarshalAsJSON: true, // easy to check equality
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	var testData = []struct {
+		in  string
+		out string
+	}{
+		{
+			"This is test writing",
+			"This is test writing",
+		},
+		{
+			"This is another test writing",
+			"This is another test writing",
+		},
+	}
+	for _, tt := range testData {
+		buf := &Conn{}
+		f.conn = buf
+
+		f.pending = []byte(tt.in)
+
+		err := f.Close()
+		if err != nil {
+			t.Errorf("in=%s, err=%s", tt.in, err)
+		}
+
+		rcv := buf.String()
+		if rcv != tt.out {
+			t.Errorf("got %s, except %s", rcv, tt.out)
+		}
 	}
 }
 
