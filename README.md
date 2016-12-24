@@ -59,6 +59,15 @@ func main() {
 f := fluent.New(fluent.Config{FluentPort: 80, FluentHost: "example.com"})
 ```
 
+## Buffer overflow
+
+You can inject your own custom func to handle buffer overflow in the event of connection failure.
+This will mitigate the loss of data instead of simply rejecting data and ending up throwing data away.
+
+Your func must accept a single argument, which will be the internal buffer of messages from the logger.
+This func is also called when logger.Close() failed to send the remaining internal buffer of messages.
+A typical use-case for this would be writing to disk or possibly writing to Redis.
+
 ## Tests
 ```
 go test

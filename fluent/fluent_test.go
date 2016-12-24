@@ -3,10 +3,12 @@ package fluent
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -245,6 +247,235 @@ func TestAsyncConnect(t *testing.T) {
 		res.f.Close()
 	case <-time.After(time.Millisecond * 500):
 		t.Error("AsyncConnect must not block")
+	}
+}
+
+func Test_PostWithTime(t *testing.T) {
+	f, err := New(Config{
+		FluentPort:    6666,
+		AsyncConnect:  false,
+		MarshalAsJSON: true,     // easy to check equality
+		BufferLimit:   1 * 1024, // not to buffer over flow
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	var testData = []struct {
+		in  map[string]string
+		out string
+	}{
+		{
+			map[string]string{"foo": "bar"},
+			"[\"tag_name\",1482493046,{\"foo\":\"bar\"},null]",
+		},
+		{
+			map[string]string{"fuga": "bar", "hoge": "fuga"},
+			"[\"tag_name\",1482493046,{\"fuga\":\"bar\",\"hoge\":\"fuga\"},null]",
+		},
+	}
+	for _, tt := range testData {
+		buf := &Conn{}
+		f.conn = buf
+
+		err = f.PostWithTime("tag_name", time.Unix(1482493046, 0), tt.in)
+		if err != nil {
+			t.Errorf("in=%s, err=%s", tt.in, err)
+		}
+
+		rcv := buf.String()
+		if rcv != tt.out {
+			t.Errorf("got %s, except %s", rcv, tt.out)
+		}
+	}
+}
+
+func Test_BufferOverFlow(t *testing.T) {
+	f, err := New(Config{
+		FluentPort:    6666,
+		AsyncConnect:  false,
+		MarshalAsJSON: true,     // easy to check equality
+		BufferLimit:   1 * 1024, // to buffer over flow
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	var testData = []struct {
+		in  map[string]string
+		out string
+	}{
+		{
+			map[string]string{"k": strings.Repeat("v", 1024)},
+			"fluent#appendBuffer: Buffer full, limit 1024",
+		},
+	}
+	for _, tt := range testData {
+		err = f.PostWithTime("tag_name", time.Unix(1482493046, 0), tt.in)
+		if err.Error() != tt.out {
+			t.Errorf("got %s, except %s", err, tt.out)
+		}
+	}
+}
+
+func Test_BufferOverFlowHandler(t *testing.T) {
+	f, err := New(Config{
+		FluentPort:    6666,
+		AsyncConnect:  false,
+		MarshalAsJSON: true,     // easy to check equality
+		BufferLimit:   1 * 1024, // to buffer over flow
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	var testData = []struct {
+		in         map[string]string
+		handlerErr error
+		out        string
+		outErr     error
+	}{
+		{
+			map[string]string{"k": strings.Repeat("v", 1024)},
+			nil,
+			fmt.Sprintf("[\"tag_name\",1482493046,{\"k\":\"%s\"},null]",
+				strings.Repeat("v", 1024)),
+			nil,
+		},
+		{
+			map[string]string{"k": strings.Repeat("v", 1024)},
+			fmt.Errorf("handler problem"),
+			fmt.Sprintf("[\"tag_name\",1482493046,{\"k\":\"%s\"},null]",
+				strings.Repeat("v", 1024)),
+			fmt.Errorf("fluent#appendBuffer: Buffer full, limit 1024 and next error is fluent#callBufferOverflowHandler: Can't call buffer overflow handler: handler problem"),
+		},
+	}
+	for _, tt := range testData {
+		var handlerBuf []byte
+		f.Config.BufferOverflowHandler = func(pending []byte) error {
+			handlerBuf = make([]byte, len(pending))
+			copy(handlerBuf, pending)
+			return tt.handlerErr
+		}
+
+		buf := &Conn{}
+		f.conn = buf
+
+		err = f.PostWithTime("tag_name", time.Unix(1482493046, 0), tt.in)
+		if err != tt.outErr && err.Error() != tt.outErr.Error() {
+			t.Errorf("got %s, except %s, in %s", err, tt.outErr, tt.in)
+		}
+
+		rcv := buf.String()
+		if rcv != "" {
+			t.Errorf("got %s, except empty", rcv)
+		}
+
+		overflow := string(handlerBuf)
+		if overflow != tt.out {
+			t.Errorf("got %s, except %s", overflow, tt.out)
+		}
+	}
+}
+
+func Test_Close(t *testing.T) {
+	f, err := New(Config{
+		FluentPort:    6666,
+		AsyncConnect:  false,
+		MarshalAsJSON: true, // easy to check equality
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	var testData = []struct {
+		in  string
+		out string
+	}{
+		{
+			"This is test writing",
+			"This is test writing",
+		},
+		{
+			"This is another test writing",
+			"This is another test writing",
+		},
+	}
+	for _, tt := range testData {
+		buf := &Conn{}
+		f.conn = buf
+
+		f.pending = []byte(tt.in)
+
+		err := f.Close()
+		if err != nil {
+			t.Errorf("in=%s, err=%s", tt.in, err)
+		}
+
+		rcv := buf.String()
+		if rcv != tt.out {
+			t.Errorf("got %s, except %s", rcv, tt.out)
+		}
+	}
+}
+
+func Test_CloseWithBufferOverflowHandler(t *testing.T) {
+	f, err := New(Config{
+		FluentPort:    6666,
+		AsyncConnect:  false,
+		MarshalAsJSON: true, // easy to check equality
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	var testData = []struct {
+		in         string
+		handlerErr error
+		out        string
+		outErr     error
+	}{
+		{
+			"This is test writing",
+			nil,
+			"This is test writing",
+			nil,
+		},
+		{
+			"This is another test writing",
+			fmt.Errorf("handler problem"),
+			"This is another test writing",
+			fmt.Errorf("fluent#send: can't send logs, client is reconnecting and next error is fluent#callBufferOverflowHandler: Can't call buffer overflow handler: handler problem"),
+		},
+	}
+	for _, tt := range testData {
+		var handlerBuf []byte
+		f.Config.BufferOverflowHandler = func(pending []byte) error {
+			handlerBuf = make([]byte, len(pending))
+			copy(handlerBuf, pending)
+			return tt.handlerErr
+		}
+
+		// cause error of send() and stop retrying send()
+		f.conn = nil
+		f.reconnecting = true
+
+		f.pending = []byte(tt.in)
+
+		err := f.Close()
+		if err != tt.outErr && err.Error() != tt.outErr.Error() {
+			t.Errorf("got %s, except %s, in %s", err, tt.outErr, tt.in)
+		}
+
+		overflow := string(handlerBuf)
+		if overflow != tt.out {
+			t.Errorf("got %s, except %s", overflow, tt.out)
+		}
 	}
 }
 

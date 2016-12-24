@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net"
 	"reflect"
@@ -26,17 +27,18 @@ const (
 )
 
 type Config struct {
-	FluentPort       int           `json:"fluent_port"`
-	FluentHost       string        `json:"fluent_host"`
-	FluentNetwork    string        `json:"fluent_network"`
-	FluentSocketPath string        `json:"fluent_socket_path"`
-	Timeout          time.Duration `json:"timeout"`
-	BufferLimit      int           `json:"buffer_limit"`
-	RetryWait        int           `json:"retry_wait"`
-	MaxRetry         int           `json:"max_retry"`
-	TagPrefix        string        `json:"tag_prefix"`
-	AsyncConnect     bool          `json:"async_connect"`
-	MarshalAsJSON    bool          `json:"marshal_as_json"`
+	FluentPort            int                `json:"fluent_port"`
+	FluentHost            string             `json:"fluent_host"`
+	FluentNetwork         string             `json:"fluent_network"`
+	FluentSocketPath      string             `json:"fluent_socket_path"`
+	Timeout               time.Duration      `json:"timeout"`
+	BufferLimit           int                `json:"buffer_limit"`
+	RetryWait             int                `json:"retry_wait"`
+	MaxRetry              int                `json:"max_retry"`
+	TagPrefix             string             `json:"tag_prefix"`
+	AsyncConnect          bool               `json:"async_connect"`
+	MarshalAsJSON         bool               `json:"marshal_as_json"`
+	BufferOverflowHandler func([]byte) error `json:"-"`
 }
 
 type Fluent struct {
@@ -214,7 +216,20 @@ func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data
 func (f *Fluent) Close() (err error) {
 	if len(f.pending) > 0 {
 		err = f.send()
+		if err != nil && f.Config.BufferOverflowHandler != nil {
+			handlerErr := f.callBufferOverflowHandler(f.pending)
+			if handlerErr != nil {
+				err = fmt.Errorf("%s and next error is %s", err, handlerErr)
+			} else {
+				f.pending = f.pending[:0]
+
+				// log err and then reset err
+				log.Print(err)
+				err = nil
+			}
+		}
 	}
+
 	f.close()
 	return
 }
@@ -224,9 +239,39 @@ func (f *Fluent) appendBuffer(data []byte) error {
 	f.mubuff.Lock()
 	defer f.mubuff.Unlock()
 	if len(f.pending)+len(data) > f.Config.BufferLimit {
-		return errors.New(fmt.Sprintf("fluent#appendBuffer: Buffer full, limit %v", f.Config.BufferLimit))
+		if f.Config.BufferOverflowHandler != nil {
+			buffer := make([]byte, len(f.pending))
+			copy(buffer, f.pending)
+			buffer = append(buffer, data...)
+
+			err := f.callBufferOverflowHandler(buffer)
+			if err != nil {
+				return fmt.Errorf(
+					"fluent#appendBuffer: Buffer full, limit %v and next error is %s",
+					f.Config.BufferLimit, err,
+				)
+			} else {
+				f.pending = f.pending[:0]
+				return nil
+			}
+		} else {
+			return fmt.Errorf("fluent#appendBuffer: Buffer full, limit %v", f.Config.BufferLimit)
+		}
 	}
 	f.pending = append(f.pending, data...)
+	return nil
+}
+
+func (f *Fluent) callBufferOverflowHandler(pending []byte) error {
+	if f.Config.BufferOverflowHandler != nil {
+		err := f.Config.BufferOverflowHandler(pending)
+		if err != nil {
+			return fmt.Errorf(
+				"fluent#callBufferOverflowHandler: Can't call buffer overflow handler: %s",
+				err,
+			)
+		}
+	}
 	return nil
 }
 
