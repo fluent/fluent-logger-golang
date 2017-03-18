@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"net"
 	"reflect"
@@ -19,6 +18,7 @@ const (
 	defaultSocketPath             = ""
 	defaultPort                   = 24224
 	defaultTimeout                = 3 * time.Second
+	defaultWriteTimeout           = time.Duration(0) // Write() will not time out
 	defaultBufferLimit            = 8 * 1024 * 1024
 	defaultRetryWait              = 500
 	defaultMaxRetry               = 13
@@ -31,6 +31,7 @@ type Config struct {
 	FluentNetwork    string        `json:"fluent_network"`
 	FluentSocketPath string        `json:"fluent_socket_path"`
 	Timeout          time.Duration `json:"timeout"`
+	WriteTimeout     time.Duration `json:"write_timeout"`
 	BufferLimit      int           `json:"buffer_limit"`
 	RetryWait        int           `json:"retry_wait"`
 	MaxRetry         int           `json:"max_retry"`
@@ -46,7 +47,7 @@ type Fluent struct {
 	pending []byte
 
 	muconn       sync.Mutex
-	conn         io.WriteCloser
+	conn         net.Conn
 	reconnecting bool
 }
 
@@ -66,6 +67,9 @@ func New(config Config) (f *Fluent, err error) {
 	}
 	if config.Timeout == 0 {
 		config.Timeout = defaultTimeout
+	}
+	if config.WriteTimeout == 0 {
+		config.WriteTimeout = defaultWriteTimeout
 	}
 	if config.BufferLimit == 0 {
 		config.BufferLimit = defaultBufferLimit
@@ -297,6 +301,12 @@ func (f *Fluent) send() error {
 
 	var err error
 	if len(f.pending) > 0 {
+		t := f.Config.WriteTimeout
+		if time.Duration(0) < t {
+			f.conn.SetWriteDeadline(time.Now().Add(t))
+		} else {
+			f.conn.SetWriteDeadline(time.Time{})
+		}
 		_, err = f.conn.Write(f.pending)
 		if err != nil {
 			f.conn.Close()

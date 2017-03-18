@@ -4,6 +4,7 @@
   "fluent_network":"tcp",
   "fluent_socket_path":"/var/tmp/fluent.sock",
   "timeout":3000,
+  "write_timeout":6000,
   "buffer_limit":200,
   "retry_wait":5,
   "max_retry":3,
