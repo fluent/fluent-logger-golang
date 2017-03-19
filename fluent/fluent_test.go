@@ -19,7 +19,8 @@ const (
 // Conn is io.WriteCloser
 type Conn struct {
 	net.Conn
-	buf []byte
+	buf           []byte
+	writeDeadline time.Time
 }
 
 func (c *Conn) Read(b []byte) (int, error) {
@@ -34,6 +35,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 }
 
 func (c *Conn) SetWriteDeadline(t time.Time) error {
+	c.writeDeadline = t
 	return nil
 }
 
@@ -304,6 +306,9 @@ func Test_PostWithTime(t *testing.T) {
 		if string(rcv) != tt.out {
 			t.Errorf("got %s, except %s", string(rcv), tt.out)
 		}
+
+		if !conn.writeDeadline.IsZero() {
+			t.Errorf("got %s, except 0", conn.writeDeadline)
 		}
 	}
 }
