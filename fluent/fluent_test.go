@@ -248,6 +248,46 @@ func TestAsyncConnect(t *testing.T) {
 	}
 }
 
+func Test_PostWithTime(t *testing.T) {
+	f, err := New(Config{
+		FluentPort:    6666,
+		AsyncConnect:  false,
+		MarshalAsJSON: true, // easy to check equality
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	var testData = []struct {
+		in  map[string]string
+		out string
+	}{
+		{
+			map[string]string{"foo": "bar"},
+			"[\"tag_name\",1482493046,{\"foo\":\"bar\"},null]",
+		},
+		{
+			map[string]string{"fuga": "bar", "hoge": "fuga"},
+			"[\"tag_name\",1482493046,{\"fuga\":\"bar\",\"hoge\":\"fuga\"},null]",
+		},
+	}
+	for _, tt := range testData {
+		buf := &Conn{}
+		f.conn = buf
+
+		err = f.PostWithTime("tag_name", time.Unix(1482493046, 0), tt.in)
+		if err != nil {
+			t.Errorf("in=%s, err=%s", tt.in, err)
+		}
+
+		rcv := buf.String()
+		if rcv != tt.out {
+			t.Errorf("got %s, except %s", rcv, tt.out)
+		}
+	}
+}
+
 func Benchmark_PostWithShortMessage(b *testing.B) {
 	b.StopTimer()
 	f, err := New(Config{})
