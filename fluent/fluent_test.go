@@ -268,7 +268,7 @@ func TestAsyncConnect(t *testing.T) {
 	}
 }
 
-func Test_PostWithTime(t *testing.T) {
+func Test_PostWithTimeNotTimeOut(t *testing.T) {
 	f, err := New(Config{
 		FluentPort:    6666,
 		AsyncConnect:  false,
