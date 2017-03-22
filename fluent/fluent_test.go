@@ -16,7 +16,7 @@ const (
 	RECV_BUF_LEN = 1024
 )
 
-// Conn is io.WriteCloser
+// Conn is net.Conn with the parameters to be verified in the test
 type Conn struct {
 	net.Conn
 	buf           []byte
