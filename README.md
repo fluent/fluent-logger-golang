@@ -59,6 +59,11 @@ func main() {
 f := fluent.New(fluent.Config{FluentPort: 80, FluentHost: "example.com"})
 ```
 
+### WriteTimeout
+
+Sets the timeout for Write call of logger.Post.
+Since the default is zero value, Write will not time out.
+
 ## Tests
 ```
 go test
