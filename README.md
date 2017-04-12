@@ -21,7 +21,7 @@ import "github.com/fluent/fluent-logger-golang/fluent"
 
 GoDoc: http://godoc.org/github.com/fluent/fluent-logger-golang/fluent
 
-##Example
+## Example
 
 ```go
 package main
