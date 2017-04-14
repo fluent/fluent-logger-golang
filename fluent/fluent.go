@@ -38,6 +38,7 @@ type Config struct {
 	TagPrefix        string        `json:"tag_prefix"`
 	AsyncConnect     bool          `json:"async_connect"`
 	MarshalAsJSON    bool          `json:"marshal_as_json"`
+	RetryForever     bool          `json:"retry_forever"`
 }
 
 type Fluent struct {
@@ -275,7 +276,7 @@ func (f *Fluent) reconnect() {
 			f.send()
 			return
 		}
-		if i == f.Config.MaxRetry {
+		if !f.Config.RetryForever && i == f.Config.MaxRetry {
 			// TODO: What we can do when connection failed MaxRetry times?
 			panic("fluent#reconnect: failed to reconnect!")
 		}
