@@ -87,6 +87,7 @@ func Test_New_itShouldUseDefaultConfigValuesIfNoOtherProvided(t *testing.T) {
 	assert.Equal(t, f.Config.BufferLimit, defaultBufferLimit)
 	assert.Equal(t, f.Config.FluentNetwork, defaultNetwork)
 	assert.Equal(t, f.Config.FluentSocketPath, defaultSocketPath)
+	assert.Equal(t, f.Config.RetryForever, false)
 }
 
 func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
@@ -137,6 +138,11 @@ func Test_New_itShouldUseConfigValuesFromArguments(t *testing.T) {
 func Test_New_itShouldUseConfigValuesFromMashalAsJSONArgument(t *testing.T) {
 	f, _ := New(Config{MarshalAsJSON: true})
 	assert.Equal(t, f.Config.MarshalAsJSON, true)
+}
+
+func Test_New_itShouldUseConfigValuesFromRetryForeverArgument(t *testing.T) {
+	f, _ := New(Config{RetryForever: true})
+	assert.Equal(t, f.Config.RetryForever, true)
 }
 
 func Test_send_WritePendingToConn(t *testing.T) {
