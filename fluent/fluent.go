@@ -197,8 +197,9 @@ type MessageChunk struct {
 // So, it should write JSON marshaler by hand.
 func (chunk *MessageChunk) MarshalJSON() ([]byte, error) {
 	data, err := json.Marshal(chunk.message.Record)
+	timeAsInt := time.Time(chunk.message.Time).Unix()
 	return []byte(fmt.Sprintf("[\"%s\",%d,%s,null]", chunk.message.Tag,
-		chunk.message.Time, data)), err
+		timeAsInt, data)), err
 }
 
 func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data []byte, err error) {
