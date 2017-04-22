@@ -180,8 +180,8 @@ func Test_MarshalAsMsgpack(t *testing.T) {
 	actual := string(result)
 
 	// map entries are disordered in golang
-	expected1 := "\x94\xA3tag\xD2K\x92\u001Ee\x82\xA3foo\xA3bar\xA4hoge\xA4hoge\xC0"
-	expected2 := "\x94\xA3tag\xD2K\x92\u001Ee\x82\xA4hoge\xA4hoge\xA3foo\xA3bar\xC0"
+	expected1 := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x00\x00\x82\xA3foo\xA3bar\xA4hoge\xA4hoge\xC0"
+	expected2 := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x00\x00\x82\xA4hoge\xA4hoge\xA3foo\xA3bar\xC0"
 	if actual != expected1 && actual != expected2 {
 		t.Errorf("got %x,\n         except %x\n             or %x", actual, expected1, expected2)
 	}
