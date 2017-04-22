@@ -72,5 +72,6 @@ func (t *EventTime) MarshalBinaryTo(b []byte) error {
 }
 
 func (t *EventTime) UnmarshalBinary(b []byte) error {
+	// TODO: Implement
 	return nil
 }
