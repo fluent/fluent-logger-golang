@@ -202,7 +202,7 @@ func (chunk *MessageChunk) MarshalJSON() ([]byte, error) {
 }
 
 func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data []byte, err error) {
-	timeUnix := tm.Unix()
+	timeUnix := EventTime(tm)
 	if f.Config.MarshalAsJSON {
 		msg := Message{Tag: tag, Time: timeUnix, Record: message}
 		chunk := &MessageChunk{message: msg}
