@@ -162,7 +162,7 @@ func Test_send_WritePendingToConn(t *testing.T) {
 }
 
 func Test_MarshalAsMsgpack(t *testing.T) {
-	f := &Fluent{Config: Config{}, reconnecting: false}
+	f := &Fluent{Config: Config{SubSecondPrecision: true}, reconnecting: false}
 
 	conn := &Conn{}
 	f.conn = conn

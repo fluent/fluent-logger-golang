@@ -278,7 +278,7 @@ func (z *Message) DecodeMsg(dc *msgp.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	err = dc.ReadExtension(&z.Time)
+	z.Time, err = dc.ReadInt64()
 	if err != nil {
 		return
 	}
@@ -304,7 +304,7 @@ func (z *Message) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteExtension(&z.Time)
+	err = en.WriteInt64(z.Time)
 	if err != nil {
 		return
 	}
@@ -325,10 +325,7 @@ func (z *Message) MarshalMsg(b []byte) (o []byte, err error) {
 	// array header, size 4
 	o = append(o, 0x94)
 	o = msgp.AppendString(o, z.Tag)
-	o, err = msgp.AppendExtension(o, &z.Time)
-	if err != nil {
-		return
-	}
+	o = msgp.AppendInt64(o, z.Time)
 	o, err = msgp.AppendIntf(o, z.Record)
 	if err != nil {
 		return
@@ -355,7 +352,7 @@ func (z *Message) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	if err != nil {
 		return
 	}
-	bts, err = msgp.ReadExtensionBytes(bts, &z.Time)
+	z.Time, bts, err = msgp.ReadInt64Bytes(bts)
 	if err != nil {
 		return
 	}
@@ -373,6 +370,120 @@ func (z *Message) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Message) Msgsize() (s int) {
+	s = 1 + msgp.StringPrefixSize + len(z.Tag) + msgp.Int64Size + msgp.GuessSize(z.Record) + msgp.GuessSize(z.Option)
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
+func (z *MessageExt) DecodeMsg(dc *msgp.Reader) (err error) {
+	var zpks uint32
+	zpks, err = dc.ReadArrayHeader()
+	if err != nil {
+		return
+	}
+	if zpks != 4 {
+		err = msgp.ArrayError{Wanted: 4, Got: zpks}
+		return
+	}
+	z.Tag, err = dc.ReadString()
+	if err != nil {
+		return
+	}
+	err = dc.ReadExtension(&z.Time)
+	if err != nil {
+		return
+	}
+	z.Record, err = dc.ReadIntf()
+	if err != nil {
+		return
+	}
+	z.Option, err = dc.ReadIntf()
+	if err != nil {
+		return
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z *MessageExt) EncodeMsg(en *msgp.Writer) (err error) {
+	// array header, size 4
+	err = en.Append(0x94)
+	if err != nil {
+		return err
+	}
+	err = en.WriteString(z.Tag)
+	if err != nil {
+		return
+	}
+	err = en.WriteExtension(&z.Time)
+	if err != nil {
+		return
+	}
+	err = en.WriteIntf(z.Record)
+	if err != nil {
+		return
+	}
+	err = en.WriteIntf(z.Option)
+	if err != nil {
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z *MessageExt) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// array header, size 4
+	o = append(o, 0x94)
+	o = msgp.AppendString(o, z.Tag)
+	o, err = msgp.AppendExtension(o, &z.Time)
+	if err != nil {
+		return
+	}
+	o, err = msgp.AppendIntf(o, z.Record)
+	if err != nil {
+		return
+	}
+	o, err = msgp.AppendIntf(o, z.Option)
+	if err != nil {
+		return
+	}
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *MessageExt) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var zjfb uint32
+	zjfb, bts, err = msgp.ReadArrayHeaderBytes(bts)
+	if err != nil {
+		return
+	}
+	if zjfb != 4 {
+		err = msgp.ArrayError{Wanted: 4, Got: zjfb}
+		return
+	}
+	z.Tag, bts, err = msgp.ReadStringBytes(bts)
+	if err != nil {
+		return
+	}
+	bts, err = msgp.ReadExtensionBytes(bts, &z.Time)
+	if err != nil {
+		return
+	}
+	z.Record, bts, err = msgp.ReadIntfBytes(bts)
+	if err != nil {
+		return
+	}
+	z.Option, bts, err = msgp.ReadIntfBytes(bts)
+	if err != nil {
+		return
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z *MessageExt) Msgsize() (s int) {
 	s = 1 + msgp.StringPrefixSize + len(z.Tag) + msgp.ExtensionPrefixSize + z.Time.Len() + msgp.GuessSize(z.Record) + msgp.GuessSize(z.Option)
 	return
 }

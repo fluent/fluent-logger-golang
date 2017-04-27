@@ -23,6 +23,9 @@ const (
 	defaultRetryWait              = 500
 	defaultMaxRetry               = 13
 	defaultReconnectWaitIncreRate = 1.5
+	// Default sub-second precision value to false since it is only compatible
+	// with fluentd versions v0.14 and above.
+	defaultSubSecondPrecision = false
 )
 
 type Config struct {
@@ -38,6 +41,10 @@ type Config struct {
 	TagPrefix        string        `json:"tag_prefix"`
 	AsyncConnect     bool          `json:"async_connect"`
 	MarshalAsJSON    bool          `json:"marshal_as_json"`
+
+	// Sub-second precision timestamps are only possible for those using fluentd
+	// v0.14+ and serializing their messages with msgpack.
+	SubSecondPrecision bool `json:"sub_second_precision"`
 }
 
 type Fluent struct {
@@ -197,17 +204,19 @@ type MessageChunk struct {
 // So, it should write JSON marshaler by hand.
 func (chunk *MessageChunk) MarshalJSON() ([]byte, error) {
 	data, err := json.Marshal(chunk.message.Record)
-	timeAsInt := time.Time(chunk.message.Time).Unix()
 	return []byte(fmt.Sprintf("[\"%s\",%d,%s,null]", chunk.message.Tag,
-		timeAsInt, data)), err
+		chunk.message.Time, data)), err
 }
 
 func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data []byte, err error) {
-	timeUnix := EventTime(tm)
+	timeUnix := tm.Unix()
 	if f.Config.MarshalAsJSON {
 		msg := Message{Tag: tag, Time: timeUnix, Record: message}
 		chunk := &MessageChunk{message: msg}
 		data, err = json.Marshal(chunk)
+	} else if f.Config.SubSecondPrecision {
+		msg := &MessageExt{Tag: tag, Time: EventTime(tm), Record: message}
+		data, err = msg.MarshalMsg(nil)
 	} else {
 		msg := &Message{Tag: tag, Time: timeUnix, Record: message}
 		data, err = msg.MarshalMsg(nil)
