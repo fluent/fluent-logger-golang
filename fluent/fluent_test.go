@@ -188,29 +188,30 @@ func Test_MarshalAsMsgpack(t *testing.T) {
 }
 
 func Test_SubSecondPrecision(t *testing.T) {
-	f := &Fluent{Config: Config{SubSecondPrecision: true}, reconnecting: false}
+	// Setup the test subject
+	fluent := &Fluent{
+		Config: Config{
+			SubSecondPrecision: true,
+		},
+		reconnecting: false,
+	}
+	fluent.conn = &Conn{}
 
-	conn := &Conn{}
-	f.conn = conn
+	// Exercise the test subject
+	timestamp := time.Unix(1267867237, 0)
+	encodedData, err := fluent.EncodeData("tag", timestamp, map[string]string{
+		"foo": "bar",
+	})
 
-	tag := "tag"
-	var data = map[string]string{
-		"foo":  "bar",
-		"hoge": "hoge"}
-	tm := time.Unix(1267867237, 0)
-	result, err := f.EncodeData(tag, tm, data)
-
+	// Assert no encoding errors and that the timestamp has been encoded into
+	// the message as expected.
 	if err != nil {
 		t.Error(err)
 	}
-	actual := string(result)
 
-	// map entries are disordered in golang
-	expected1 := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x00\x00\x82\xA3foo\xA3bar\xA4hoge\xA4hoge\xC0"
-	expected2 := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x00\x00\x82\xA4hoge\xA4hoge\xA3foo\xA3bar\xC0"
-	if actual != expected1 && actual != expected2 {
-		t.Errorf("got %x,\n         except %x\n             or %x", actual, expected1, expected2)
-	}
+	expected := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x00\x00\x81\xA3foo\xA3bar\xC0"
+	actual := string(encodedData)
+	assert.Equal(t, expected, actual)
 }
 
 func Test_MarshalAsJSON(t *testing.T) {
