@@ -73,7 +73,7 @@ func (t *EventTime) MarshalBinaryTo(b []byte) error {
 	sec := int32(utc.Unix())
 	nsec := utc.Nanosecond()
 
-	// Full the buffer with 4 bytes for the second component of the timestamp.
+	// Fill the buffer with 4 bytes for the second component of the timestamp.
 	b[0] = byte(sec >> 24)
 	b[1] = byte(sec >> 16)
 	b[2] = byte(sec >> 8)

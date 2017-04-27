@@ -162,6 +162,32 @@ func Test_send_WritePendingToConn(t *testing.T) {
 }
 
 func Test_MarshalAsMsgpack(t *testing.T) {
+	f := &Fluent{Config: Config{}, reconnecting: false}
+
+	conn := &Conn{}
+	f.conn = conn
+
+	tag := "tag"
+	var data = map[string]string{
+		"foo":  "bar",
+		"hoge": "hoge"}
+	tm := time.Unix(1267867237, 0)
+	result, err := f.EncodeData(tag, tm, data)
+
+	if err != nil {
+		t.Error(err)
+	}
+	actual := string(result)
+
+	// map entries are disordered in golang
+	expected1 := "\x94\xA3tag\xD2K\x92\u001Ee\x82\xA3foo\xA3bar\xA4hoge\xA4hoge\xC0"
+	expected2 := "\x94\xA3tag\xD2K\x92\u001Ee\x82\xA4hoge\xA4hoge\xA3foo\xA3bar\xC0"
+	if actual != expected1 && actual != expected2 {
+		t.Errorf("got %x,\n         except %x\n             or %x", actual, expected1, expected2)
+	}
+}
+
+func Test_SubSecondPrecision(t *testing.T) {
 	f := &Fluent{Config: Config{SubSecondPrecision: true}, reconnecting: false}
 
 	conn := &Conn{}
