@@ -89,7 +89,8 @@ func (t *EventTime) MarshalBinaryTo(b []byte) error {
 	return nil
 }
 
+// UnmarshalBinary is not implemented since decoding messages is not supported
+// by this library.
 func (t *EventTime) UnmarshalBinary(b []byte) error {
-	// TODO: Implement
 	return nil
 }

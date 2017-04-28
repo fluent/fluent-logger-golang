@@ -198,7 +198,7 @@ func Test_SubSecondPrecision(t *testing.T) {
 	fluent.conn = &Conn{}
 
 	// Exercise the test subject
-	timestamp := time.Unix(1267867237, 0)
+	timestamp := time.Unix(1267867237, 256)
 	encodedData, err := fluent.EncodeData("tag", timestamp, map[string]string{
 		"foo": "bar",
 	})
@@ -209,7 +209,7 @@ func Test_SubSecondPrecision(t *testing.T) {
 		t.Error(err)
 	}
 
-	expected := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x00\x00\x81\xA3foo\xA3bar\xC0"
+	expected := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x01\x00\x81\xA3foo\xA3bar\xC0"
 	actual := string(encodedData)
 	assert.Equal(t, expected, actual)
 }
