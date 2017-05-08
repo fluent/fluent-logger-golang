@@ -187,6 +187,33 @@ func Test_MarshalAsMsgpack(t *testing.T) {
 	}
 }
 
+func Test_SubSecondPrecision(t *testing.T) {
+	// Setup the test subject
+	fluent := &Fluent{
+		Config: Config{
+			SubSecondPrecision: true,
+		},
+		reconnecting: false,
+	}
+	fluent.conn = &Conn{}
+
+	// Exercise the test subject
+	timestamp := time.Unix(1267867237, 256)
+	encodedData, err := fluent.EncodeData("tag", timestamp, map[string]string{
+		"foo": "bar",
+	})
+
+	// Assert no encoding errors and that the timestamp has been encoded into
+	// the message as expected.
+	if err != nil {
+		t.Error(err)
+	}
+
+	expected := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x01\x00\x81\xA3foo\xA3bar\xC0"
+	actual := string(encodedData)
+	assert.Equal(t, expected, actual)
+}
+
 func Test_MarshalAsJSON(t *testing.T) {
 	f := &Fluent{Config: Config{MarshalAsJSON: true}, reconnecting: false}
 
