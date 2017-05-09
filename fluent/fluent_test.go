@@ -61,20 +61,23 @@ func init() {
 				println("Error accept:", err.Error())
 				return
 			}
-			go EchoFunc(conn)
+			go DoRead(conn)
 		}
 	}()
 }
 
-func EchoFunc(conn net.Conn) {
+func setupBenchFluent() (*Fluent, error) {
+	return New(Config{FluentHost: "0.0.0.0", FluentPort: 6666})
+}
+
+func DoRead(conn net.Conn) {
 	for {
 		buf := make([]byte, RECV_BUF_LEN)
-		n, err := conn.Read(buf)
+		_, err := conn.Read(buf)
 		if err != nil {
 			println("Error reading:", err.Error())
 			return
 		}
-		println("received ", n, " bytes of data =", string(buf))
 	}
 }
 
@@ -342,7 +345,7 @@ func Test_PostWithTimeNotTimeOut(t *testing.T) {
 
 func Benchmark_PostWithShortMessage(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -374,7 +377,7 @@ func Benchmark_PostWithShortMessageMarshalAsJSON(b *testing.B) {
 
 func Benchmark_LogWithChunks(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -390,7 +393,7 @@ func Benchmark_LogWithChunks(b *testing.B) {
 
 func Benchmark_PostWithStruct(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -410,7 +413,7 @@ func Benchmark_PostWithStruct(b *testing.B) {
 
 func Benchmark_PostWithStructTaggedAsCodec(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -430,7 +433,7 @@ func Benchmark_PostWithStructTaggedAsCodec(b *testing.B) {
 
 func Benchmark_PostWithStructWithoutTag(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -450,7 +453,7 @@ func Benchmark_PostWithStructWithoutTag(b *testing.B) {
 
 func Benchmark_PostWithMapString(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -468,7 +471,7 @@ func Benchmark_PostWithMapString(b *testing.B) {
 
 func Benchmark_PostWithMapSlice(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
@@ -486,7 +489,7 @@ func Benchmark_PostWithMapSlice(b *testing.B) {
 
 func Benchmark_PostWithMapStringAndTime(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	f, err := setupBenchFluent()
 	if err != nil {
 		panic(err)
 	}
