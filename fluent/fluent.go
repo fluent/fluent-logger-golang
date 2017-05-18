@@ -155,6 +155,10 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 		return f.EncodeAndPostData(tag, tm, kv)
 	}
 
+	if msgtype.Kind() == reflect.String {
+		return f.EncodeAndPostData(tag, tm, message)
+	}
+
 	if msgtype.Kind() != reflect.Map {
 		return errors.New("fluent#PostWithTime: message must be a map")
 	} else if msgtype.Key().Kind() != reflect.String {
