@@ -270,6 +270,12 @@ func (f *Fluent) connect() (err error) {
 
 	if err == nil {
 		f.reconnecting = false
+		t := f.Config.WriteTimeout
+		if time.Duration(0) < t {
+			f.conn.SetWriteDeadline(time.Now().Add(t))
+		} else {
+			f.conn.SetWriteDeadline(time.Time{})
+		}
 	}
 	return
 }
@@ -311,12 +317,6 @@ func (f *Fluent) send() error {
 
 	var err error
 	if len(f.pending) > 0 {
-		t := f.Config.WriteTimeout
-		if time.Duration(0) < t {
-			f.conn.SetWriteDeadline(time.Now().Add(t))
-		} else {
-			f.conn.SetWriteDeadline(time.Time{})
-		}
 		_, err = f.conn.Write(f.pending)
 		if err != nil {
 			f.conn.Close()
