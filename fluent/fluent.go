@@ -10,8 +10,13 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/17media/api/base/metrics"
 )
 
+var (
+	met = metrics.New("fluent")
+)
 const (
 	defaultHost                   = "127.0.0.1"
 	defaultNetwork                = "tcp"
@@ -303,6 +308,7 @@ func (f *Fluent) send() error {
 			f.reconnecting = true
 			go f.reconnect()
 		}
+		met.BumpSum("send.err", "reason", "reconnect")
 		return errors.New("fluent#send: can't send logs, client is reconnecting")
 	}
 
@@ -319,6 +325,7 @@ func (f *Fluent) send() error {
 		}
 		_, err = f.conn.Write(f.pending)
 		if err != nil {
+			met.BumpSum("send.err", "reason", "write")
 			f.conn.Close()
 			f.conn = nil
 		} else {
