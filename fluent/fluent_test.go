@@ -340,6 +340,47 @@ func Test_PostWithTimeNotTimeOut(t *testing.T) {
 	}
 }
 
+func Test_PostMsgpMarshaler(t *testing.T) {
+	f, err := New(Config{
+		FluentPort:    6666,
+		AsyncConnect:  false,
+		MarshalAsJSON: true, // easy to check equality
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	var testData = []struct {
+		in  *TestMessage
+		out string
+	}{
+		{
+			&TestMessage{Foo: "bar"},
+			"[\"tag_name\",1482493046,{\"foo\":\"bar\"},null]",
+		},
+	}
+	for _, tt := range testData {
+		conn := &Conn{}
+		f.conn = conn
+
+		err = f.PostWithTime("tag_name", time.Unix(1482493046, 0), tt.in)
+		if err != nil {
+			t.Errorf("in=%s, err=%s", tt.in, err)
+		}
+
+		rcv := make([]byte, len(conn.buf))
+		_, err = conn.Read(rcv)
+		if string(rcv) != tt.out {
+			t.Errorf("got %s, except %s", string(rcv), tt.out)
+		}
+
+		if !conn.writeDeadline.IsZero() {
+			t.Errorf("got %s, except 0", conn.writeDeadline)
+		}
+	}
+}
+
 func Benchmark_PostWithShortMessage(b *testing.B) {
 	b.StopTimer()
 	f, err := New(Config{})
@@ -459,6 +500,22 @@ func Benchmark_PostWithMapString(b *testing.B) {
 	data := map[string]string{
 		"foo": "bar",
 	}
+	for i := 0; i < b.N; i++ {
+		if err := f.Post("tag", data); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func Benchmark_PostWithMsgpMarshaler(b *testing.B) {
+	b.StopTimer()
+	f, err := New(Config{})
+	if err != nil {
+		panic(err)
+	}
+
+	b.StartTimer()
+	data := &TestMessage{Foo: "bar"}
 	for i := 0; i < b.N; i++ {
 		if err := f.Post("tag", data); err != nil {
 			panic(err)
