@@ -103,9 +103,6 @@ func New(config Config) (f *Fluent, err error) {
 //
 // Examples:
 //
-//  // send string
-//  f.Post("tag_name", "data")
-//
 //  // send map[string]
 //  mapStringData := map[string]string{
 //  	"foo":  "bar",
