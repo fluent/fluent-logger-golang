@@ -44,7 +44,7 @@ func main() {
     "hoge": "hoge",
   }
   error := logger.Post(tag, data)
-  // error := logger.Post(tag, time.Time.Now(), data)
+  // error := logger.PostWithTime(tag, time.Now(), data)
   if error != nil {
     panic(error)
   }
