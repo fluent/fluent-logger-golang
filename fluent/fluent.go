@@ -23,6 +23,7 @@ const (
 	defaultWriteTimeout           = time.Duration(0) // Write() will not time out
 	defaultBufferLimit            = 8 * 1024 * 1024
 	defaultRetryWait              = 500
+	defaultMaxRetryWait           = 60000
 	defaultMaxRetry               = 13
 	defaultReconnectWaitIncreRate = 1.5
 	// Default sub-second precision value to false since it is only compatible
@@ -40,6 +41,7 @@ type Config struct {
 	BufferLimit      int           `json:"buffer_limit"`
 	RetryWait        int           `json:"retry_wait"`
 	MaxRetry         int           `json:"max_retry"`
+	MaxRetryWait     int           `json:"max_retry_wait"`
 	TagPrefix        string        `json:"tag_prefix"`
 	AsyncConnect     bool          `json:"async_connect"`
 	MarshalAsJSON    bool          `json:"marshal_as_json"`
@@ -88,6 +90,9 @@ func New(config Config) (f *Fluent, err error) {
 	}
 	if config.MaxRetry == 0 {
 		config.MaxRetry = defaultMaxRetry
+	}
+	if config.MaxRetryWait == 0 {
+		config.MaxRetryWait = defaultMaxRetryWait
 	}
 	if config.AsyncConnect {
 		f = &Fluent{Config: config, reconnecting: true}
@@ -293,6 +298,9 @@ func (f *Fluent) reconnect() {
 			panic("fluent#reconnect: failed to reconnect!")
 		}
 		waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
+		if waitTime > f.Config.MaxRetryWait {
+			waitTime = f.Config.MaxRetryWait
+		}
 		time.Sleep(time.Duration(waitTime) * time.Millisecond)
 	}
 }
