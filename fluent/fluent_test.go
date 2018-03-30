@@ -140,16 +140,16 @@ func Test_New_itShouldUseConfigValuesFromMashalAsJSONArgument(t *testing.T) {
 }
 
 func Test_send_WritePendingToConn(t *testing.T) {
-	f := &Fluent{Config: Config{}, reconnecting: false}
+	f, _ := New(Config{Async: true})
 
 	conn := &Conn{}
 	f.conn = conn
 
 	msg := "This is test writing."
 	bmsg := []byte(msg)
-	f.pending = append(f.pending, bmsg...)
+	f.pending <- bmsg
 
-	err := f.send()
+	err := f.write(bmsg)
 	if err != nil {
 		t.Error(err)
 	}
@@ -159,10 +159,12 @@ func Test_send_WritePendingToConn(t *testing.T) {
 	if string(rcv) != msg {
 		t.Errorf("got %s, except %s", string(rcv), msg)
 	}
+
+	f.Close()
 }
 
 func Test_MarshalAsMsgpack(t *testing.T) {
-	f := &Fluent{Config: Config{}, reconnecting: false}
+	f := &Fluent{Config: Config{}}
 
 	conn := &Conn{}
 	f.conn = conn
@@ -193,7 +195,6 @@ func Test_SubSecondPrecision(t *testing.T) {
 		Config: Config{
 			SubSecondPrecision: true,
 		},
-		reconnecting: false,
 	}
 	fluent.conn = &Conn{}
 
@@ -215,7 +216,7 @@ func Test_SubSecondPrecision(t *testing.T) {
 }
 
 func Test_MarshalAsJSON(t *testing.T) {
-	f := &Fluent{Config: Config{MarshalAsJSON: true}, reconnecting: false}
+	f := &Fluent{Config: Config{MarshalAsJSON: true}}
 
 	conn := &Conn{}
 	f.conn = conn
@@ -250,11 +251,11 @@ func TestJsonConfig(t *testing.T) {
 		FluentSocketPath: "/var/tmp/fluent.sock",
 		Timeout:          3000,
 		WriteTimeout:     6000,
-		BufferLimit:      200,
+		BufferLimit:      10,
 		RetryWait:        5,
 		MaxRetry:         3,
 		TagPrefix:        "fluent",
-		AsyncConnect:     false,
+		Async:            false,
 		MarshalAsJSON:    true,
 	}
 
@@ -276,8 +277,8 @@ func TestAsyncConnect(t *testing.T) {
 	ch := make(chan result, 1)
 	go func() {
 		config := Config{
-			FluentPort:   8888,
-			AsyncConnect: true,
+			FluentPort: 8888,
+			Async:      true,
 		}
 		f, err := New(config)
 		ch <- result{f: f, err: err}
@@ -291,14 +292,14 @@ func TestAsyncConnect(t *testing.T) {
 		}
 		res.f.Close()
 	case <-time.After(time.Millisecond * 500):
-		t.Error("AsyncConnect must not block")
+		t.Error("Async must not block")
 	}
 }
 
 func Test_PostWithTimeNotTimeOut(t *testing.T) {
 	f, err := New(Config{
 		FluentPort:    6666,
-		AsyncConnect:  false,
+		Async:         false,
 		MarshalAsJSON: true, // easy to check equality
 	})
 	if err != nil {
@@ -343,7 +344,7 @@ func Test_PostWithTimeNotTimeOut(t *testing.T) {
 func Test_PostMsgpMarshaler(t *testing.T) {
 	f, err := New(Config{
 		FluentPort:    6666,
-		AsyncConnect:  false,
+		Async:         false,
 		MarshalAsJSON: true, // easy to check equality
 	})
 	if err != nil {
