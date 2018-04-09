@@ -210,9 +210,13 @@ func Test_SubSecondPrecision(t *testing.T) {
 		t.Error(err)
 	}
 
-	expected := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x01\x00\x81\xA3foo\xA3bar\xC0"
+	// 8 bytes timestamp can be represented using ext 8 or fixext 8
+	expected1 := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x01\x00\x81\xA3foo\xA3bar\xC0"
+	expected2 := "\x94\xa3tag\xD7\x00K\x92\x1Ee\x00\x00\x01\x00\x81\xA3foo\xA3bar\xc0"
 	actual := string(encodedData)
-	assert.Equal(t, expected, actual)
+	if actual != expected1 && actual != expected2 {
+		t.Errorf("got %x,\n         except %x\n             or %x", actual, expected1, expected2)
+	}
 }
 
 func Test_MarshalAsJSON(t *testing.T) {
