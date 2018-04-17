@@ -2,6 +2,7 @@ package fluent
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"net"
 	"reflect"
@@ -140,7 +141,7 @@ func Test_New_itShouldUseConfigValuesFromMashalAsJSONArgument(t *testing.T) {
 }
 
 func Test_send_WritePendingToConn(t *testing.T) {
-	f := &Fluent{Config: Config{}, reconnecting: false}
+	f := &Fluent{Config: Config{}}
 
 	conn := &Conn{}
 	f.conn = conn
@@ -162,7 +163,7 @@ func Test_send_WritePendingToConn(t *testing.T) {
 }
 
 func Test_MarshalAsMsgpack(t *testing.T) {
-	f := &Fluent{Config: Config{}, reconnecting: false}
+	f := &Fluent{Config: Config{}}
 
 	conn := &Conn{}
 	f.conn = conn
@@ -215,7 +216,7 @@ func Test_SubSecondPrecision(t *testing.T) {
 }
 
 func Test_MarshalAsJSON(t *testing.T) {
-	f := &Fluent{Config: Config{MarshalAsJSON: true}, reconnecting: false}
+	f := &Fluent{Config: Config{MarshalAsJSON: true}}
 
 	conn := &Conn{}
 	f.conn = conn
@@ -377,6 +378,73 @@ func Test_PostMsgpMarshaler(t *testing.T) {
 
 		if !conn.writeDeadline.IsZero() {
 			t.Errorf("got %s, except 0", conn.writeDeadline)
+		}
+	}
+}
+
+func TestReconnect(t *testing.T) {
+	f, err := New(Config{FluentPort: 6666})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	f.conn.Close()
+	f.conn = nil
+	doTestReconnect(t, f)
+
+	if f.conn == nil {
+		t.Fatal("expected active conn after reconnect")
+	}
+
+	conn := f.conn
+	doTestReconnect(t, f)
+
+	if f.conn != conn {
+		t.Fatal("expected reconnect to not replace a working conn")
+	}
+
+	f.conn.Close()
+	f.conn = nil
+	f.reconnectErr = errors.New("some error")
+
+	err = f.send()
+	if err == nil {
+		t.Fatal(err)
+	}
+	if _, ok := err.(ConnectionErr); !ok {
+		t.Fatal("expected a connection error, got %T", err)
+	}
+
+	f.reconnectErr = nil
+	err = f.send()
+	if err != errReconnectingSend {
+		t.Fatal(err)
+	}
+	if _, ok := err.(ConnectionErr); !ok {
+		t.Fatal("expected a connection error, got %T", err)
+	}
+
+	doTestReconnect(t, f)
+	if f.conn == nil {
+		t.Fatal("conn should not be nil")
+	}
+	if err := f.send(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func doTestReconnect(t *testing.T, f *Fluent) {
+	chErr := make(chan error, 1)
+	go func() {
+		chErr <- f.Reconnect()
+	}()
+	select {
+	case <-time.After(60 * time.Second):
+		t.Fatal("timeout waiting for reconnect")
+	case err := <-chErr:
+		if err != nil {
+			t.Fatal(err)
 		}
 	}
 }

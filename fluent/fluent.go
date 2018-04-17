@@ -47,6 +47,7 @@ type Config struct {
 	// Sub-second precision timestamps are only possible for those using fluentd
 	// v0.14+ and serializing their messages with msgpack.
 	SubSecondPrecision bool `json:"sub_second_precision"`
+	UseReconnectError  bool `json:"use_reconnect_error"`
 }
 
 type Fluent struct {
@@ -56,7 +57,9 @@ type Fluent struct {
 	pending []byte
 
 	muconn       sync.Mutex
+	connWait     *sync.Cond
 	conn         net.Conn
+	reconnectErr error
 	reconnecting bool
 }
 
@@ -90,10 +93,12 @@ func New(config Config) (f *Fluent, err error) {
 		config.MaxRetry = defaultMaxRetry
 	}
 	if config.AsyncConnect {
-		f = &Fluent{Config: config, reconnecting: true}
+		f = &Fluent{Config: config}
+		f.connWait = sync.NewCond(&f.muconn)
 		go f.reconnect()
 	} else {
-		f = &Fluent{Config: config, reconnecting: false}
+		f = &Fluent{Config: config}
+		f.connWait = sync.NewCond(&f.muconn)
 		err = f.connect()
 	}
 	return
@@ -271,9 +276,11 @@ func (f *Fluent) connect() (err error) {
 		err = net.UnknownNetworkError(f.Config.FluentNetwork)
 	}
 
+	f.reconnectErr = err
 	if err == nil {
 		f.reconnecting = false
 	}
+	f.connWait.Broadcast()
 	return
 }
 
@@ -282,31 +289,71 @@ func e(x, y float64) int {
 }
 
 func (f *Fluent) reconnect() {
-	for i := 0; ; i++ {
-		err := f.connect()
+	var err error
+	for i := 0; i < f.Config.MaxRetry; i++ {
+		err = f.connect()
 		if err == nil {
-			f.send()
-			return
-		}
-		if i == f.Config.MaxRetry {
-			// TODO: What we can do when connection failed MaxRetry times?
-			panic("fluent#reconnect: failed to reconnect!")
+			break
 		}
 		waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
 		time.Sleep(time.Duration(waitTime) * time.Millisecond)
 	}
+
+	if err != nil && !f.UseReconnectError {
+		panic("fluent#reconnect: failed to reconnect!")
+	}
+
+	f.muconn.Lock()
+	f.reconnectErr = err
+	f.muconn.Unlock()
+
+	if err == nil {
+		f.send()
+	}
 }
+
+// Reconnect re-initializes a connection.
+func (f *Fluent) Reconnect() error {
+	f.muconn.Lock()
+	defer f.muconn.Unlock()
+
+	for f.reconnecting {
+		f.connWait.Wait()
+	}
+
+	if f.conn != nil {
+		return nil
+	}
+
+	f.reconnecting = true
+	go f.reconnect()
+
+	for f.reconnecting {
+		f.connWait.Wait()
+	}
+	return f.reconnectErr
+}
+
+// ConnectionError is an error returned when attempting to post data and the connection is not available and the
+// configured max retry attempts has occurred.
+// To recover from this error consider calling `Reconnect()` which resets the retry counter and attempts a new connection.
+type ConnectionErr error
+
+var errReconnectingSend = errors.New("fluent#send: can't send logs, client is reconnecting")
 
 func (f *Fluent) send() error {
 	f.muconn.Lock()
 	defer f.muconn.Unlock()
 
 	if f.conn == nil {
-		if f.reconnecting == false {
+		if !f.reconnecting {
+			if f.reconnectErr != nil {
+				return ConnectionErr(f.reconnectErr)
+			}
 			f.reconnecting = true
 			go f.reconnect()
 		}
-		return errors.New("fluent#send: can't send logs, client is reconnecting")
+		return ConnectionErr(errReconnectingSend)
 	}
 
 	f.mubuff.Lock()
