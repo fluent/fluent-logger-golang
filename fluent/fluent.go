@@ -97,6 +97,7 @@ func New(config Config) (f *Fluent, err error) {
 		config.MaxRetryWait = defaultMaxRetryWait
 	}
 	if config.AsyncConnect {
+		fmt.Fprintf(os.Stderr, "fluent#New: AsyncConnect is now deprecated, please use Async instead")
 		config.Async = config.Async || config.AsyncConnect
 	}
 	if config.Async {
@@ -337,5 +338,5 @@ func (f *Fluent) write(data []byte) error {
 		}
 	}
 
-	return errors.New("fluent#write: failed to reconnect")
+	return fmt.Errorf("fluent#write: failed to reconnect, max retry: %v", f.Config.MaxRetry)
 }
