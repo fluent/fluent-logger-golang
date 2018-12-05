@@ -184,7 +184,7 @@ func Test_MarshalAsMsgpack(t *testing.T) {
 
 	// map entries are disordered in golang
 	expected1 := []byte{148, 163, 116, 97, 103, 210, 75, 146, 30, 101, 130, 163, 102, 111, 111, 163, 98, 97, 114, 164, 104, 111, 103, 101, 164, 104, 111, 103, 101, 128}
-	expected2 := []byte{148, 163, 116, 97, 103, 210, 75, 146, 30, 101, 130, 163, 102, 111, 111, 163, 98, 97, 114, 164, 104, 111, 103, 101, 164, 104, 111, 103, 101, 128}
+	expected2 := []byte{148, 163, 116, 97, 103, 210, 75, 146, 30, 101, 130, 164, 104, 111, 103, 101, 164, 104, 111, 103, 101, 163, 102, 111, 111, 163, 98, 97, 114, 128}
 	if !bytes.Equal(actual, expected1) && !bytes.Equal(actual, expected2) {
 		t.Errorf("got %+v,\n         except %+v\n             or %+v", actual, expected1, expected2)
 	}
