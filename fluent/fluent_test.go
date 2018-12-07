@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"bytes"
 	"github.com/bmizerany/assert"
 )
 
@@ -180,12 +179,12 @@ func Test_MarshalAsMsgpack(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	actual := result.data
+	actual := string(result.data)
 
 	// map entries are disordered in golang
-	expected1 := []byte{148, 163, 116, 97, 103, 210, 75, 146, 30, 101, 130, 163, 102, 111, 111, 163, 98, 97, 114, 164, 104, 111, 103, 101, 164, 104, 111, 103, 101, 128}
-	expected2 := []byte{148, 163, 116, 97, 103, 210, 75, 146, 30, 101, 130, 164, 104, 111, 103, 101, 164, 104, 111, 103, 101, 163, 102, 111, 111, 163, 98, 97, 114, 128}
-	if !bytes.Equal(actual, expected1) && !bytes.Equal(actual, expected2) {
+	expected1 := "\x94\xA3tag\xD2K\x92\u001Ee\x82\xA3foo\xA3bar\xA4hoge\xA4hoge\x80"
+	expected2 := "\x94\xA3tag\xD2K\x92\u001Ee\x82\xA4hoge\xA4hoge\xA3foo\xA3bar\x80"
+	if actual != expected1 && actual != expected2 {
 		t.Errorf("got %+v,\n         except %+v\n             or %+v", actual, expected1, expected2)
 	}
 }
@@ -212,10 +211,10 @@ func Test_SubSecondPrecision(t *testing.T) {
 	}
 
 	// 8 bytes timestamp can be represented using ext 8 or fixext 8
-	expected1 := []byte{148, 163, 116, 97, 103, 215, 0, 75, 146, 30, 101, 0, 0, 1, 0, 129, 163, 102, 111, 111, 163, 98, 97, 114, 128}
-	expected2 := []byte{148, 163, 116, 97, 103, 215, 0, 75, 146, 30, 101, 0, 0, 1, 0, 129, 163, 102, 111, 111, 163, 98, 97, 114, 128}
-	actual := encodedData.data
-	if !bytes.Equal(actual, expected1) && !bytes.Equal(actual, expected2) {
+	expected1 := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x01\x00\x81\xA3foo\xA3bar\x80"
+	expected2 := "\x94\xa3tag\xD7\x00K\x92\x1Ee\x00\x00\x01\x00\x81\xA3foo\xA3bar\x80"
+	actual := string(encodedData.data)
+	if actual != expected1 && actual != expected2 {
 		t.Errorf("got %+v,\n         except %+v\n             or %+v", actual, expected1, expected2)
 	}
 }
