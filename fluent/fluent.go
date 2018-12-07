@@ -16,7 +16,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"github.com/tinylib/msgp/msgp"
-	"hash/fnv"
 	"math/rand"
 )
 
@@ -249,12 +248,14 @@ func (chunk *MessageChunk) MarshalJSON() ([]byte, error) {
 // mechanism, see
 // https://github.com/fluent/fluentd/wiki/Forward-Protocol-Specification-v1#option
 func getUniqueID(timeUnix int64) string {
-	hsh := fnv.New128()
 	buf := bytes.NewBuffer(nil)
 	enc := base64.NewEncoder(base64.StdEncoding, buf)
-	binary.Write(hsh, binary.LittleEndian, timeUnix)
-	binary.Write(hsh, binary.LittleEndian, rand.Uint64())
-	enc.Write(hsh.Sum(nil))
+	if err := binary.Write(enc, binary.LittleEndian, timeUnix); err != nil {
+		panic(err)
+	}
+	if err := binary.Write(enc, binary.LittleEndian, rand.Uint64()); err != nil {
+		panic(err)
+	}
 	enc.Close()
 	return buf.String()
 }
