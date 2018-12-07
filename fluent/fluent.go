@@ -375,7 +375,6 @@ func (f *Fluent) write(data *msgToSend) error {
 		}
 		_, err := f.conn.Write(data.data)
 		if err != nil {
-			fmt.Println("write error ", err.Error(), string(data.data))
 			f.close()
 		} else {
 			if data.ack != "" {
@@ -387,14 +386,10 @@ func (f *Fluent) write(data *msgToSend) error {
 					r := msgp.NewReader(f.conn)
 					err = ack.DecodeMsg(r)
 				}
-				if err != nil {
-					fmt.Println(err)
+				if err != nil || ack.Ack != data.ack {
+					f.close()
 					continue
 				}
-				if ack.Ack != data.ack {
-					continue
-				}
-
 			}
 			return err
 		}
