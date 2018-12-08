@@ -12,7 +12,11 @@ import (
 	"sync"
 	"time"
 
+	"bytes"
+	"encoding/base64"
+	"encoding/binary"
 	"github.com/tinylib/msgp/msgp"
+	"math/rand"
 )
 
 const (
@@ -52,12 +56,22 @@ type Config struct {
 	// Sub-second precision timestamps are only possible for those using fluentd
 	// v0.14+ and serializing their messages with msgpack.
 	SubSecondPrecision bool `json:"sub_second_precision"`
+
+	// RequestAck sends the chunk option with a unique ID. The server will
+	// respond with an acknowledgement. This option improves the reliability
+	// of the message transmission.
+	RequestAck bool `json:"request_ack"`
+}
+
+type msgToSend struct {
+	data []byte
+	ack  string
 }
 
 type Fluent struct {
 	Config
 
-	pending chan []byte
+	pending chan *msgToSend
 	wg      sync.WaitGroup
 
 	muconn sync.Mutex
@@ -103,7 +117,7 @@ func New(config Config) (f *Fluent, err error) {
 	if config.Async {
 		f = &Fluent{
 			Config:  config,
-			pending: make(chan []byte, config.BufferLimit),
+			pending: make(chan *msgToSend, config.BufferLimit),
 		}
 		f.wg.Add(1)
 		go f.run()
@@ -188,7 +202,7 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 }
 
 func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message interface{}) error {
-	var data []byte
+	var data *msgToSend
 	var err error
 	if data, err = f.EncodeData(tag, tm, message); err != nil {
 		return fmt.Errorf("fluent#EncodeAndPostData: can't convert '%#v' to msgpack:%v", message, err)
@@ -197,11 +211,11 @@ func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message interface{}
 }
 
 // Deprecated: Use EncodeAndPostData instead
-func (f *Fluent) PostRawData(data []byte) {
+func (f *Fluent) PostRawData(data *msgToSend) {
 	f.postRawData(data)
 }
 
-func (f *Fluent) postRawData(data []byte) error {
+func (f *Fluent) postRawData(data *msgToSend) error {
 	if f.Config.Async {
 		return f.appendBuffer(data)
 	}
@@ -219,22 +233,51 @@ type MessageChunk struct {
 // So, it should write JSON marshaler by hand.
 func (chunk *MessageChunk) MarshalJSON() ([]byte, error) {
 	data, err := json.Marshal(chunk.message.Record)
-	return []byte(fmt.Sprintf("[\"%s\",%d,%s,null]", chunk.message.Tag,
-		chunk.message.Time, data)), err
+	if err != nil {
+		return nil, err
+	}
+	option, err := json.Marshal(chunk.message.Option)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(fmt.Sprintf("[\"%s\",%d,%s,%s]", chunk.message.Tag,
+		chunk.message.Time, data, option)), err
 }
 
-func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data []byte, err error) {
+// getUniqueID returns a base64 encoded unique ID that can be used for chunk/ack
+// mechanism, see
+// https://github.com/fluent/fluentd/wiki/Forward-Protocol-Specification-v1#option
+func getUniqueID(timeUnix int64) string {
+	buf := bytes.NewBuffer(nil)
+	enc := base64.NewEncoder(base64.StdEncoding, buf)
+	if err := binary.Write(enc, binary.LittleEndian, timeUnix); err != nil {
+		panic(err)
+	}
+	if err := binary.Write(enc, binary.LittleEndian, rand.Uint64()); err != nil {
+		panic(err)
+	}
+	enc.Close()
+	return buf.String()
+}
+
+func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data *msgToSend, err error) {
+	option := make(map[string]string)
+	data = &msgToSend{}
 	timeUnix := tm.Unix()
+	if f.Config.RequestAck {
+		data.ack = getUniqueID(timeUnix)
+		option["chunk"] = data.ack
+	}
 	if f.Config.MarshalAsJSON {
-		msg := Message{Tag: tag, Time: timeUnix, Record: message}
+		msg := Message{Tag: tag, Time: timeUnix, Record: message, Option: option}
 		chunk := &MessageChunk{message: msg}
-		data, err = json.Marshal(chunk)
+		data.data, err = json.Marshal(chunk)
 	} else if f.Config.SubSecondPrecision {
-		msg := &MessageExt{Tag: tag, Time: EventTime(tm), Record: message}
-		data, err = msg.MarshalMsg(nil)
+		msg := &MessageExt{Tag: tag, Time: EventTime(tm), Record: message, Option: option}
+		data.data, err = msg.MarshalMsg(nil)
 	} else {
-		msg := &Message{Tag: tag, Time: timeUnix, Record: message}
-		data, err = msg.MarshalMsg(nil)
+		msg := &Message{Tag: tag, Time: timeUnix, Record: message, Option: option}
+		data.data, err = msg.MarshalMsg(nil)
 	}
 	return
 }
@@ -250,7 +293,7 @@ func (f *Fluent) Close() (err error) {
 }
 
 // appendBuffer appends data to buffer with lock.
-func (f *Fluent) appendBuffer(data []byte) error {
+func (f *Fluent) appendBuffer(data *msgToSend) error {
 	select {
 	case f.pending <- data:
 	default:
@@ -303,7 +346,7 @@ func e(x, y float64) int {
 	return int(math.Pow(x, y))
 }
 
-func (f *Fluent) write(data []byte) error {
+func (f *Fluent) write(data *msgToSend) error {
 
 	for i := 0; i < f.Config.MaxRetry; i++ {
 
@@ -330,10 +373,25 @@ func (f *Fluent) write(data []byte) error {
 		} else {
 			f.conn.SetWriteDeadline(time.Time{})
 		}
-		_, err := f.conn.Write(data)
+		_, err := f.conn.Write(data.data)
 		if err != nil {
 			f.close()
 		} else {
+			// Acknowledgment check
+			if data.ack != "" {
+				ack := &AckResp{}
+				if f.Config.MarshalAsJSON {
+					dec := json.NewDecoder(f.conn)
+					err = dec.Decode(ack)
+				} else {
+					r := msgp.NewReader(f.conn)
+					err = ack.DecodeMsg(r)
+				}
+				if err != nil || ack.Ack != data.ack {
+					f.close()
+					continue
+				}
+			}
 			return err
 		}
 	}

@@ -64,6 +64,11 @@ f := fluent.New(fluent.Config{FluentPort: 80, FluentHost: "example.com"})
 Sets the timeout for Write call of logger.Post.
 Since the default is zero value, Write will not time out.
 
+### RequestAck
+
+Sets whether to request acknowledgment from Fluentd to increase the reliability
+of the connection. The default is false.
+
 ## Tests
 ```
 go test
