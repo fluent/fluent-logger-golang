@@ -377,6 +377,7 @@ func (f *Fluent) write(data *msgToSend) error {
 		if err != nil {
 			f.close()
 		} else {
+			// Acknowledgment check
 			if data.ack != "" {
 				ack := &AckResp{}
 				if f.Config.MarshalAsJSON {
