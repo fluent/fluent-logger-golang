@@ -251,11 +251,15 @@ func getUniqueID(timeUnix int64) (string, error) {
 	buf := bytes.NewBuffer(nil)
 	enc := base64.NewEncoder(base64.StdEncoding, buf)
 	if err := binary.Write(enc, binary.LittleEndian, timeUnix); err != nil {
+		enc.Close()
 		return "", err
 	}
 	if err := binary.Write(enc, binary.LittleEndian, rand.Uint64()); err != nil {
+		enc.Close()
 		return "", err
 	}
+	// encoder needs to be closed before buf.String(), defer does not work
+	// here
 	enc.Close()
 	return buf.String(), nil
 }
