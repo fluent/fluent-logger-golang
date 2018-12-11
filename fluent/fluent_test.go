@@ -146,7 +146,7 @@ func Test_send_WritePendingToConn(t *testing.T) {
 	f.conn = conn
 
 	msg := "This is test writing."
-	bmsg := []byte(msg)
+	bmsg := &msgToSend{data: []byte(msg)}
 	f.pending <- bmsg
 
 	err := f.write(bmsg)
@@ -155,7 +155,7 @@ func Test_send_WritePendingToConn(t *testing.T) {
 	}
 
 	rcv := make([]byte, len(conn.buf))
-	_, err = conn.Read(rcv)
+	_, _ = conn.Read(rcv)
 	if string(rcv) != msg {
 		t.Errorf("got %s, except %s", string(rcv), msg)
 	}
@@ -179,13 +179,13 @@ func Test_MarshalAsMsgpack(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	actual := string(result)
+	actual := string(result.data)
 
 	// map entries are disordered in golang
-	expected1 := "\x94\xA3tag\xD2K\x92\u001Ee\x82\xA3foo\xA3bar\xA4hoge\xA4hoge\xC0"
-	expected2 := "\x94\xA3tag\xD2K\x92\u001Ee\x82\xA4hoge\xA4hoge\xA3foo\xA3bar\xC0"
+	expected1 := "\x94\xA3tag\xD2K\x92\u001Ee\x82\xA3foo\xA3bar\xA4hoge\xA4hoge\x80"
+	expected2 := "\x94\xA3tag\xD2K\x92\u001Ee\x82\xA4hoge\xA4hoge\xA3foo\xA3bar\x80"
 	if actual != expected1 && actual != expected2 {
-		t.Errorf("got %x,\n         except %x\n             or %x", actual, expected1, expected2)
+		t.Errorf("got %+v,\n         except %+v\n             or %+v", actual, expected1, expected2)
 	}
 }
 
@@ -211,11 +211,11 @@ func Test_SubSecondPrecision(t *testing.T) {
 	}
 
 	// 8 bytes timestamp can be represented using ext 8 or fixext 8
-	expected1 := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x01\x00\x81\xA3foo\xA3bar\xC0"
-	expected2 := "\x94\xa3tag\xD7\x00K\x92\x1Ee\x00\x00\x01\x00\x81\xA3foo\xA3bar\xc0"
-	actual := string(encodedData)
+	expected1 := "\x94\xA3tag\xC7\x08\x00K\x92\u001Ee\x00\x00\x01\x00\x81\xA3foo\xA3bar\x80"
+	expected2 := "\x94\xa3tag\xD7\x00K\x92\x1Ee\x00\x00\x01\x00\x81\xA3foo\xA3bar\x80"
+	actual := string(encodedData.data)
 	if actual != expected1 && actual != expected2 {
-		t.Errorf("got %x,\n         except %x\n             or %x", actual, expected1, expected2)
+		t.Errorf("got %+v,\n         except %+v\n             or %+v", actual, expected1, expected2)
 	}
 }
 
@@ -235,8 +235,8 @@ func Test_MarshalAsJSON(t *testing.T) {
 		t.Error(err)
 	}
 	// json.Encode marshals map keys in the order, so this expectation is safe
-	expected := `["tag",1267867237,{"foo":"bar","hoge":"hoge"},null]`
-	actual := string(result)
+	expected := `["tag",1267867237,{"foo":"bar","hoge":"hoge"},{}]`
+	actual := string(result.data)
 	if actual != expected {
 		t.Errorf("got %s, except %s", actual, expected)
 	}
@@ -317,11 +317,11 @@ func Test_PostWithTimeNotTimeOut(t *testing.T) {
 	}{
 		{
 			map[string]string{"foo": "bar"},
-			"[\"tag_name\",1482493046,{\"foo\":\"bar\"},null]",
+			"[\"tag_name\",1482493046,{\"foo\":\"bar\"},{}]",
 		},
 		{
 			map[string]string{"fuga": "bar", "hoge": "fuga"},
-			"[\"tag_name\",1482493046,{\"fuga\":\"bar\",\"hoge\":\"fuga\"},null]",
+			"[\"tag_name\",1482493046,{\"fuga\":\"bar\",\"hoge\":\"fuga\"},{}]",
 		},
 	}
 	for _, tt := range testData {
@@ -334,7 +334,7 @@ func Test_PostWithTimeNotTimeOut(t *testing.T) {
 		}
 
 		rcv := make([]byte, len(conn.buf))
-		_, err = conn.Read(rcv)
+		_, _ = conn.Read(rcv)
 		if string(rcv) != tt.out {
 			t.Errorf("got %s, except %s", string(rcv), tt.out)
 		}
@@ -362,7 +362,7 @@ func Test_PostMsgpMarshaler(t *testing.T) {
 	}{
 		{
 			&TestMessage{Foo: "bar"},
-			"[\"tag_name\",1482493046,{\"foo\":\"bar\"},null]",
+			"[\"tag_name\",1482493046,{\"foo\":\"bar\"},{}]",
 		},
 	}
 	for _, tt := range testData {
@@ -375,7 +375,7 @@ func Test_PostMsgpMarshaler(t *testing.T) {
 		}
 
 		rcv := make([]byte, len(conn.buf))
-		_, err = conn.Read(rcv)
+		_, _ = conn.Read(rcv)
 		if string(rcv) != tt.out {
 			t.Errorf("got %s, except %s", string(rcv), tt.out)
 		}

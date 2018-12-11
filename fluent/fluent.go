@@ -12,7 +12,11 @@ import (
 	"sync"
 	"time"
 
+	"bytes"
+	"encoding/base64"
+	"encoding/binary"
 	"github.com/tinylib/msgp/msgp"
+	"math/rand"
 )
 
 const (
@@ -52,12 +56,22 @@ type Config struct {
 	// Sub-second precision timestamps are only possible for those using fluentd
 	// v0.14+ and serializing their messages with msgpack.
 	SubSecondPrecision bool `json:"sub_second_precision"`
+
+	// RequestAck sends the chunk option with a unique ID. The server will
+	// respond with an acknowledgement. This option improves the reliability
+	// of the message transmission.
+	RequestAck bool `json:"request_ack"`
+}
+
+type msgToSend struct {
+	data []byte
+	ack  string
 }
 
 type Fluent struct {
 	Config
 
-	pending chan []byte
+	pending chan *msgToSend
 	wg      sync.WaitGroup
 
 	muconn sync.Mutex
@@ -103,7 +117,7 @@ func New(config Config) (f *Fluent, err error) {
 	if config.Async {
 		f = &Fluent{
 			Config:  config,
-			pending: make(chan []byte, config.BufferLimit),
+			pending: make(chan *msgToSend, config.BufferLimit),
 		}
 		f.wg.Add(1)
 		go f.run()
@@ -188,25 +202,25 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 }
 
 func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message interface{}) error {
-	var data []byte
+	var msg *msgToSend
 	var err error
-	if data, err = f.EncodeData(tag, tm, message); err != nil {
+	if msg, err = f.EncodeData(tag, tm, message); err != nil {
 		return fmt.Errorf("fluent#EncodeAndPostData: can't convert '%#v' to msgpack:%v", message, err)
 	}
-	return f.postRawData(data)
+	return f.postRawData(msg)
 }
 
 // Deprecated: Use EncodeAndPostData instead
-func (f *Fluent) PostRawData(data []byte) {
-	f.postRawData(data)
+func (f *Fluent) PostRawData(msg *msgToSend) {
+	f.postRawData(msg)
 }
 
-func (f *Fluent) postRawData(data []byte) error {
+func (f *Fluent) postRawData(msg *msgToSend) error {
 	if f.Config.Async {
-		return f.appendBuffer(data)
+		return f.appendBuffer(msg)
 	}
 	// Synchronous write
-	return f.write(data)
+	return f.write(msg)
 }
 
 // For sending forward protocol adopted JSON
@@ -219,22 +233,59 @@ type MessageChunk struct {
 // So, it should write JSON marshaler by hand.
 func (chunk *MessageChunk) MarshalJSON() ([]byte, error) {
 	data, err := json.Marshal(chunk.message.Record)
-	return []byte(fmt.Sprintf("[\"%s\",%d,%s,null]", chunk.message.Tag,
-		chunk.message.Time, data)), err
+	if err != nil {
+		return nil, err
+	}
+	option, err := json.Marshal(chunk.message.Option)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(fmt.Sprintf("[\"%s\",%d,%s,%s]", chunk.message.Tag,
+		chunk.message.Time, data, option)), err
 }
 
-func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (data []byte, err error) {
+// getUniqueID returns a base64 encoded unique ID that can be used for chunk/ack
+// mechanism, see
+// https://github.com/fluent/fluentd/wiki/Forward-Protocol-Specification-v1#option
+func getUniqueID(timeUnix int64) (string, error) {
+	buf := bytes.NewBuffer(nil)
+	enc := base64.NewEncoder(base64.StdEncoding, buf)
+	if err := binary.Write(enc, binary.LittleEndian, timeUnix); err != nil {
+		enc.Close()
+		return "", err
+	}
+	if err := binary.Write(enc, binary.LittleEndian, rand.Uint64()); err != nil {
+		enc.Close()
+		return "", err
+	}
+	// encoder needs to be closed before buf.String(), defer does not work
+	// here
+	enc.Close()
+	return buf.String(), nil
+}
+
+func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (msg *msgToSend, err error) {
+	option := make(map[string]string)
+	msg = &msgToSend{}
 	timeUnix := tm.Unix()
+	if f.Config.RequestAck {
+		var err error
+		msg.ack, err = getUniqueID(timeUnix)
+		if err != nil {
+			return nil, err
+		}
+		option["chunk"] = msg.ack
+	}
 	if f.Config.MarshalAsJSON {
-		msg := Message{Tag: tag, Time: timeUnix, Record: message}
-		chunk := &MessageChunk{message: msg}
-		data, err = json.Marshal(chunk)
+		m := Message{Tag: tag, Time: timeUnix, Record: message, Option: option}
+		chunk := &MessageChunk{message: m}
+		msg.data, err = json.Marshal(chunk)
 	} else if f.Config.SubSecondPrecision {
-		msg := &MessageExt{Tag: tag, Time: EventTime(tm), Record: message}
-		data, err = msg.MarshalMsg(nil)
+		m := &MessageExt{Tag: tag, Time: EventTime(tm), Record: message, Option: option}
+		msg.data, err = m.MarshalMsg(nil)
 	} else {
-		msg := &Message{Tag: tag, Time: timeUnix, Record: message}
-		data, err = msg.MarshalMsg(nil)
+		m := &Message{Tag: tag, Time: timeUnix, Record: message, Option: option}
+		msg.data, err = m.MarshalMsg(nil)
 	}
 	return
 }
@@ -250,9 +301,9 @@ func (f *Fluent) Close() (err error) {
 }
 
 // appendBuffer appends data to buffer with lock.
-func (f *Fluent) appendBuffer(data []byte) error {
+func (f *Fluent) appendBuffer(msg *msgToSend) error {
 	select {
-	case f.pending <- data:
+	case f.pending <- msg:
 	default:
 		return fmt.Errorf("fluent#appendBuffer: Buffer full, limit %v", f.Config.BufferLimit)
 	}
@@ -303,7 +354,7 @@ func e(x, y float64) int {
 	return int(math.Pow(x, y))
 }
 
-func (f *Fluent) write(data []byte) error {
+func (f *Fluent) write(msg *msgToSend) error {
 
 	for i := 0; i < f.Config.MaxRetry; i++ {
 
@@ -323,17 +374,32 @@ func (f *Fluent) write(data []byte) error {
 		}
 		f.muconn.Unlock()
 
-		// We're connected, write data
+		// We're connected, write msg
 		t := f.Config.WriteTimeout
 		if time.Duration(0) < t {
 			f.conn.SetWriteDeadline(time.Now().Add(t))
 		} else {
 			f.conn.SetWriteDeadline(time.Time{})
 		}
-		_, err := f.conn.Write(data)
+		_, err := f.conn.Write(msg.data)
 		if err != nil {
 			f.close()
 		} else {
+			// Acknowledgment check
+			if msg.ack != "" {
+				resp := &AckResp{}
+				if f.Config.MarshalAsJSON {
+					dec := json.NewDecoder(f.conn)
+					err = dec.Decode(resp)
+				} else {
+					r := msgp.NewReader(f.conn)
+					err = resp.DecodeMsg(r)
+				}
+				if err != nil || resp.Ack != msg.ack {
+					f.close()
+					continue
+				}
+			}
 			return err
 		}
 	}
