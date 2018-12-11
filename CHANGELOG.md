@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.4.0
+* Add `RequestAck` to enable at-least-once message transferring
+* Add `Async` option to update sending message in asynchronous way
+* Deprecate `AsyncConnect` (Use `Async` instead)
+
 ## 1.3.0
 * Add `SubSecondPrecision` option to handle Fluentd v0.14 (and v1) sub-second EventTime (default: false)
 * Add `WriteTimeout` option
