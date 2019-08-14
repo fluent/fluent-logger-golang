@@ -359,20 +359,22 @@ func (f *Fluent) write(msg *msgToSend) error {
 	for i := 0; i < f.Config.MaxRetry; i++ {
 
 		// Connect if needed
-		f.muconn.Lock()
 		if f.conn == nil {
-			err := f.connect()
-			if err != nil {
-				f.muconn.Unlock()
-				waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
-				if waitTime > f.Config.MaxRetryWait {
-					waitTime = f.Config.MaxRetryWait
+			f.muconn.Lock()
+			if f.conn == nil {
+				err := f.connect()
+				if err != nil {
+					f.muconn.Unlock()
+					waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
+					if waitTime > f.Config.MaxRetryWait {
+						waitTime = f.Config.MaxRetryWait
+					}
+					time.Sleep(time.Duration(waitTime) * time.Millisecond)
+					continue
 				}
-				time.Sleep(time.Duration(waitTime) * time.Millisecond)
-				continue
 			}
+			f.muconn.Unlock()
 		}
-		f.muconn.Unlock()
 
 		// We're connected, write msg
 		t := f.Config.WriteTimeout
