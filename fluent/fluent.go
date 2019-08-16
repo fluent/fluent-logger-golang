@@ -296,7 +296,7 @@ func (f *Fluent) Close() (err error) {
 		close(f.pending)
 		f.wg.Wait()
 	}
-	f.close()
+	f.close(f.conn)
 	return
 }
 
@@ -311,9 +311,9 @@ func (f *Fluent) appendBuffer(msg *msgToSend) error {
 }
 
 // close closes the connection.
-func (f *Fluent) close() {
+func (f *Fluent) close(c net.Conn) {
 	f.muconn.Lock()
-	if f.conn != nil {
+	if f.conn != nil && f.conn == c {
 		f.conn.Close()
 		f.conn = nil
 	}
@@ -386,7 +386,7 @@ func (f *Fluent) write(msg *msgToSend) error {
 		}
 		_, err := c.Write(msg.data)
 		if err != nil {
-			f.close()
+			f.close(c)
 		} else {
 			// Acknowledgment check
 			if msg.ack != "" {
@@ -399,7 +399,7 @@ func (f *Fluent) write(msg *msgToSend) error {
 					err = resp.DecodeMsg(r)
 				}
 				if err != nil || resp.Ack != msg.ack {
-					f.close()
+					f.close(c)
 					continue
 				}
 			}
