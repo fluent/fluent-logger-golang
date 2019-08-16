@@ -296,7 +296,7 @@ func (f *Fluent) Close() (err error) {
 		close(f.pending)
 		f.wg.Wait()
 	}
-	f.close()
+	f.close(f.conn)
 	return
 }
 
@@ -311,9 +311,9 @@ func (f *Fluent) appendBuffer(msg *msgToSend) error {
 }
 
 // close closes the connection.
-func (f *Fluent) close() {
+func (f *Fluent) close(c net.Conn) {
 	f.muconn.Lock()
-	if f.conn != nil {
+	if f.conn != nil && f.conn == c {
 		f.conn.Close()
 		f.conn = nil
 	}
@@ -355,11 +355,11 @@ func e(x, y float64) int {
 }
 
 func (f *Fluent) write(msg *msgToSend) error {
-
+	var c net.Conn
 	for i := 0; i < f.Config.MaxRetry; i++ {
-
+		c = f.conn
 		// Connect if needed
-		if f.conn == nil {
+		if c == nil {
 			f.muconn.Lock()
 			if f.conn == nil {
 				err := f.connect()
@@ -373,32 +373,33 @@ func (f *Fluent) write(msg *msgToSend) error {
 					continue
 				}
 			}
+			c = f.conn
 			f.muconn.Unlock()
 		}
 
 		// We're connected, write msg
 		t := f.Config.WriteTimeout
 		if time.Duration(0) < t {
-			f.conn.SetWriteDeadline(time.Now().Add(t))
+			c.SetWriteDeadline(time.Now().Add(t))
 		} else {
-			f.conn.SetWriteDeadline(time.Time{})
+			c.SetWriteDeadline(time.Time{})
 		}
-		_, err := f.conn.Write(msg.data)
+		_, err := c.Write(msg.data)
 		if err != nil {
-			f.close()
+			f.close(c)
 		} else {
 			// Acknowledgment check
 			if msg.ack != "" {
 				resp := &AckResp{}
 				if f.Config.MarshalAsJSON {
-					dec := json.NewDecoder(f.conn)
+					dec := json.NewDecoder(c)
 					err = dec.Decode(resp)
 				} else {
-					r := msgp.NewReader(f.conn)
+					r := msgp.NewReader(c)
 					err = resp.DecodeMsg(r)
 				}
 				if err != nil || resp.Ack != msg.ack {
-					f.close()
+					f.close(c)
 					continue
 				}
 			}
