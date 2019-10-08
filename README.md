@@ -74,6 +74,14 @@ The default is false.
 Sets whether to request acknowledgment from Fluentd to increase the reliability
 of the connection. The default is false.
 
+## FAQ
+
+### Does this logger support the features of Fluentd Forward Protocol v1?
+
+"the features" includes heartbeat messages (for TCP keepalive), TLS transport and shared key authentication.
+
+This logger doesn't support those features. Patches are welcome!
+
 ## Tests
 ```
 go test
