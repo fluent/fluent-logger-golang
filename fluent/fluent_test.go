@@ -118,7 +118,7 @@ func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
 	fUnknown, err := New(Config{
 		FluentNetwork:    network,
 		FluentSocketPath: socketFile})
-	if _, ok := err.(net.UnknownNetworkError); !ok {
+	if _, ok := err.(*ErrUnknownNetwork); !ok {
 		t.Errorf("err type: %T", err)
 	}
 	if err == nil {

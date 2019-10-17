@@ -63,6 +63,18 @@ type Config struct {
 	RequestAck bool `json:"request_ack"`
 }
 
+type ErrUnknownNetwork struct {
+	network string
+}
+
+func (e *ErrUnknownNetwork) Error() string {
+	return "unknown network " + e.network
+}
+
+func NewErrUknownNetwork(network string) error {
+	return &ErrUnknownNetwork{network}
+}
+
 type msgToSend struct {
 	data []byte
 	ack  string
@@ -329,7 +341,7 @@ func (f *Fluent) connect() (err error) {
 	case "unix":
 		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentSocketPath, f.Config.Timeout)
 	default:
-		err = net.UnknownNetworkError(f.Config.FluentNetwork)
+		err = NewErrUknownNetwork(f.Config.FluentNetwork)
 	}
 	return err
 }
@@ -365,6 +377,11 @@ func (f *Fluent) write(msg *msgToSend) error {
 				err := f.connect()
 				if err != nil {
 					f.muconn.Unlock()
+
+					if _, ok := err.(*ErrUnknownNetwork); ok {
+						// do not retry on unknown network error
+						break
+					}
 					waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
 					if waitTime > f.Config.MaxRetryWait {
 						waitTime = f.Config.MaxRetryWait
