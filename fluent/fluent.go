@@ -71,7 +71,7 @@ func (e *ErrUnknownNetwork) Error() string {
 	return "unknown network " + e.network
 }
 
-func NewErrUknownNetwork(network string) error {
+func NewErrUnknownNetwork(network string) error {
 	return &ErrUnknownNetwork{network}
 }
 
@@ -341,7 +341,7 @@ func (f *Fluent) connect() (err error) {
 	case "unix":
 		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentSocketPath, f.Config.Timeout)
 	default:
-		err = NewErrUknownNetwork(f.Config.FluentNetwork)
+		err = NewErrUnknownNetwork(f.Config.FluentNetwork)
 	}
 	return err
 }
