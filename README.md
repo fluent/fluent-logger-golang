@@ -69,6 +69,11 @@ Since the default is zero value, Write will not time out.
 Enable asynchronous I/O (connect and write) for sending events to Fluentd.
 The default is false.
 
+### AsyncStop
+
+Enables discarding bufferred events when Close() is called in Async mode. If Fluentd is continuously unavailable, Close() will block forever otherwise.
+The default is false.
+
 ### RequestAck
 
 Sets whether to request acknowledgment from Fluentd to increase the reliability

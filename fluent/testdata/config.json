@@ -10,5 +10,6 @@
   "max_retry":3,
   "tag_prefix":"fluent",
   "async": false,
+  "async_stop": false,
   "marshal_as_json": true
 }

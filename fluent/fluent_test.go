@@ -260,6 +260,7 @@ func TestJsonConfig(t *testing.T) {
 		MaxRetry:         3,
 		TagPrefix:        "fluent",
 		Async:            false,
+		AsyncStop:        false,
 		MarshalAsJSON:    true,
 	}
 

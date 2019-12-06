@@ -49,6 +49,7 @@ type Config struct {
 	MaxRetryWait     int           `json:"max_retry_wait"`
 	TagPrefix        string        `json:"tag_prefix"`
 	Async            bool          `json:"async"`
+	AsyncStop        bool          `json:"async_stop"`
 	// Deprecated: Use Async instead
 	AsyncConnect  bool `json:"async_connect"`
 	MarshalAsJSON bool `json:"marshal_as_json"`
@@ -83,8 +84,9 @@ type msgToSend struct {
 type Fluent struct {
 	Config
 
-	pending chan *msgToSend
-	wg      sync.WaitGroup
+	stopRunning chan bool
+	pending     chan *msgToSend
+	wg          sync.WaitGroup
 
 	muconn sync.Mutex
 	conn   net.Conn
@@ -305,6 +307,10 @@ func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (msg 
 // Close closes the connection, waiting for pending logs to be sent
 func (f *Fluent) Close() (err error) {
 	if f.Config.Async {
+		if f.Config.AsyncStop {
+			f.stopRunning <- true
+			close(f.stopRunning)
+		}
 		close(f.pending)
 		f.wg.Wait()
 	}
@@ -347,12 +353,24 @@ func (f *Fluent) connect() (err error) {
 }
 
 func (f *Fluent) run() {
+	drainEvents := false
 	for {
+		select {
+		case stopRunning, ok := <-f.stopRunning:
+			if stopRunning || !ok {
+				drainEvents = true
+			}
+default:
+		}
 		select {
 		case entry, ok := <-f.pending:
 			if !ok {
 				f.wg.Done()
 				return
+			}
+			if drainEvents {
+				fmt.Fprintf(os.Stderr, "[%s] Unable to send logs to fluentd, discarding...\n", time.Now().Format(time.RFC3339))
+				continue
 			}
 			err := f.write(entry)
 			if err != nil {
