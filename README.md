@@ -2,6 +2,7 @@ fluent-logger-golang
 ====
 
 [![Build Status](https://travis-ci.org/fluent/fluent-logger-golang.png?branch=master)](https://travis-ci.org/fluent/fluent-logger-golang)
+[![GoDoc](https://godoc.org/github.com/fluent/fluent-logger-golang/fluent?status.svg)](https://godoc.org/github.com/fluent/fluent-logger-golang/fluent)
 
 ## A structured event logger for Fluentd (Golang)
 
@@ -18,8 +19,6 @@ Install the package with `go get` and use `import` to include it in your project
 ```
 import "github.com/fluent/fluent-logger-golang/fluent"
 ```
-
-GoDoc: http://godoc.org/github.com/fluent/fluent-logger-golang/fluent
 
 ## Example
 
