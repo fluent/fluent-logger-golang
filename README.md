@@ -28,7 +28,7 @@ package main
 import (
   "github.com/fluent/fluent-logger-golang/fluent"
   "fmt"
-  "time"
+  //"time"
 )
 
 func main() {
