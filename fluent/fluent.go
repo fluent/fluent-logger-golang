@@ -354,6 +354,7 @@ func (f *Fluent) connect() (err error) {
 
 func (f *Fluent) run() {
 	drainEvents := false
+	var emitEventDrainMsg sync.Once
 	for {
 		select {
 		case stopRunning, ok := <-f.stopRunning:
@@ -369,7 +370,7 @@ func (f *Fluent) run() {
 				return
 			}
 			if drainEvents {
-				fmt.Fprintf(os.Stderr, "[%s] Unable to send logs to fluentd, discarding...\n", time.Now().Format(time.RFC3339))
+				emitEventDrainMsg.Do(func() { fmt.Fprintf(os.Stderr, "[%s] Discarding queued events...\n", time.Now().Format(time.RFC3339)) })
 				continue
 			}
 			err := f.write(entry)
