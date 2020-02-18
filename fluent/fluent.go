@@ -37,19 +37,19 @@ const (
 )
 
 type Config struct {
-	FluentPort       int           `json:"fluent_port"`
-	FluentHost       string        `json:"fluent_host"`
-	FluentNetwork    string        `json:"fluent_network"`
-	FluentSocketPath string        `json:"fluent_socket_path"`
-	Timeout          time.Duration `json:"timeout"`
-	WriteTimeout     time.Duration `json:"write_timeout"`
-	BufferLimit      int           `json:"buffer_limit"`
-	RetryWait        int           `json:"retry_wait"`
-	MaxRetry         int           `json:"max_retry"`
-	MaxRetryWait     int           `json:"max_retry_wait"`
-	TagPrefix        string        `json:"tag_prefix"`
-	Async            bool          `json:"async"`
-	AsyncStop        bool          `json:"async_stop"`
+	FluentPort         int           `json:"fluent_port"`
+	FluentHost         string        `json:"fluent_host"`
+	FluentNetwork      string        `json:"fluent_network"`
+	FluentSocketPath   string        `json:"fluent_socket_path"`
+	Timeout            time.Duration `json:"timeout"`
+	WriteTimeout       time.Duration `json:"write_timeout"`
+	BufferLimit        int           `json:"buffer_limit"`
+	RetryWait          int           `json:"retry_wait"`
+	MaxRetry           int           `json:"max_retry"`
+	MaxRetryWait       int           `json:"max_retry_wait"`
+	TagPrefix          string        `json:"tag_prefix"`
+	Async              bool          `json:"async"`
+	ForceStopAsyncSend bool          `json:"force_stop_async_send"`
 	// Deprecated: Use Async instead
 	AsyncConnect  bool `json:"async_connect"`
 	MarshalAsJSON bool `json:"marshal_as_json"`
@@ -307,7 +307,7 @@ func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (msg 
 // Close closes the connection, waiting for pending logs to be sent
 func (f *Fluent) Close() (err error) {
 	if f.Config.Async {
-		if f.Config.AsyncStop {
+		if f.Config.ForceStopAsyncSend {
 			f.stopRunning <- true
 			close(f.stopRunning)
 		}
@@ -360,7 +360,7 @@ func (f *Fluent) run() {
 			if stopRunning || !ok {
 				drainEvents = true
 			}
-default:
+		default:
 		}
 		select {
 		case entry, ok := <-f.pending:
