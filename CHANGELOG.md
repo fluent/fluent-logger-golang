@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.5.0
+* Add `ForceStopAsyncSend` to stop asynchronous message transferring immediately when `close()` called
+* Fix to lock connections only when needed
+* Fix a bug to panic for closing nil connection
+
 ## 1.4.0
 * Add `RequestAck` to enable at-least-once message transferring
 * Add `Async` option to update sending message in asynchronous way
