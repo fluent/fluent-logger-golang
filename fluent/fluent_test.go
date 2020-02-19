@@ -249,18 +249,19 @@ func TestJsonConfig(t *testing.T) {
 	}
 	var got Config
 	expect := Config{
-		FluentPort:       8888,
-		FluentHost:       "localhost",
-		FluentNetwork:    "tcp",
-		FluentSocketPath: "/var/tmp/fluent.sock",
-		Timeout:          3000,
-		WriteTimeout:     6000,
-		BufferLimit:      10,
-		RetryWait:        5,
-		MaxRetry:         3,
-		TagPrefix:        "fluent",
-		Async:            false,
-		MarshalAsJSON:    true,
+		FluentPort:         8888,
+		FluentHost:         "localhost",
+		FluentNetwork:      "tcp",
+		FluentSocketPath:   "/var/tmp/fluent.sock",
+		Timeout:            3000,
+		WriteTimeout:       6000,
+		BufferLimit:        10,
+		RetryWait:          5,
+		MaxRetry:           3,
+		TagPrefix:          "fluent",
+		Async:              false,
+		ForceStopAsyncSend: false,
+		MarshalAsJSON:      true,
 	}
 
 	err = json.Unmarshal(b, &got)

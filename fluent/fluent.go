@@ -37,18 +37,19 @@ const (
 )
 
 type Config struct {
-	FluentPort       int           `json:"fluent_port"`
-	FluentHost       string        `json:"fluent_host"`
-	FluentNetwork    string        `json:"fluent_network"`
-	FluentSocketPath string        `json:"fluent_socket_path"`
-	Timeout          time.Duration `json:"timeout"`
-	WriteTimeout     time.Duration `json:"write_timeout"`
-	BufferLimit      int           `json:"buffer_limit"`
-	RetryWait        int           `json:"retry_wait"`
-	MaxRetry         int           `json:"max_retry"`
-	MaxRetryWait     int           `json:"max_retry_wait"`
-	TagPrefix        string        `json:"tag_prefix"`
-	Async            bool          `json:"async"`
+	FluentPort         int           `json:"fluent_port"`
+	FluentHost         string        `json:"fluent_host"`
+	FluentNetwork      string        `json:"fluent_network"`
+	FluentSocketPath   string        `json:"fluent_socket_path"`
+	Timeout            time.Duration `json:"timeout"`
+	WriteTimeout       time.Duration `json:"write_timeout"`
+	BufferLimit        int           `json:"buffer_limit"`
+	RetryWait          int           `json:"retry_wait"`
+	MaxRetry           int           `json:"max_retry"`
+	MaxRetryWait       int           `json:"max_retry_wait"`
+	TagPrefix          string        `json:"tag_prefix"`
+	Async              bool          `json:"async"`
+	ForceStopAsyncSend bool          `json:"force_stop_async_send"`
 	// Deprecated: Use Async instead
 	AsyncConnect  bool `json:"async_connect"`
 	MarshalAsJSON bool `json:"marshal_as_json"`
@@ -83,8 +84,9 @@ type msgToSend struct {
 type Fluent struct {
 	Config
 
-	pending chan *msgToSend
-	wg      sync.WaitGroup
+	stopRunning chan bool
+	pending     chan *msgToSend
+	wg          sync.WaitGroup
 
 	muconn sync.Mutex
 	conn   net.Conn
@@ -305,6 +307,10 @@ func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (msg 
 // Close closes the connection, waiting for pending logs to be sent
 func (f *Fluent) Close() (err error) {
 	if f.Config.Async {
+		if f.Config.ForceStopAsyncSend {
+			f.stopRunning <- true
+			close(f.stopRunning)
+		}
 		close(f.pending)
 		f.wg.Wait()
 	}
@@ -347,6 +353,8 @@ func (f *Fluent) connect() (err error) {
 }
 
 func (f *Fluent) run() {
+	drainEvents := false
+	var emitEventDrainMsg sync.Once
 	for {
 		select {
 		case entry, ok := <-f.pending:
@@ -354,10 +362,21 @@ func (f *Fluent) run() {
 				f.wg.Done()
 				return
 			}
+			if drainEvents {
+				emitEventDrainMsg.Do(func() { fmt.Fprintf(os.Stderr, "[%s] Discarding queued events...\n", time.Now().Format(time.RFC3339)) })
+				continue
+			}
 			err := f.write(entry)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "[%s] Unable to send logs to fluentd, reconnecting...\n", time.Now().Format(time.RFC3339))
 			}
+		}
+		select {
+		case stopRunning, ok := <-f.stopRunning:
+			if stopRunning || !ok {
+				drainEvents = true
+			}
+		default:
 		}
 	}
 }
