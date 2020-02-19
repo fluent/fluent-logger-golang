@@ -357,13 +357,6 @@ func (f *Fluent) run() {
 	var emitEventDrainMsg sync.Once
 	for {
 		select {
-		case stopRunning, ok := <-f.stopRunning:
-			if stopRunning || !ok {
-				drainEvents = true
-			}
-		default:
-		}
-		select {
 		case entry, ok := <-f.pending:
 			if !ok {
 				f.wg.Done()
@@ -377,6 +370,13 @@ func (f *Fluent) run() {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "[%s] Unable to send logs to fluentd, reconnecting...\n", time.Now().Format(time.RFC3339))
 			}
+		}
+		select {
+		case stopRunning, ok := <-f.stopRunning:
+			if stopRunning || !ok {
+				drainEvents = true
+			}
+		default:
 		}
 	}
 }
