@@ -2,6 +2,7 @@ package fluent
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,16 @@ import (
 	"github.com/bmizerany/assert"
 	"github.com/tinylib/msgp/msgp"
 )
+
+func init() {
+	// randomGenerator points to rand.Uint64 by default. Unfortunately, even when it's
+	// seeded, it produces different values from time to time and thus is not fully
+	// deterministic. This prevents writing stable tests for RequestAck config option.
+	// Thus we need to change it to ensure the hashes are stable during tests.
+	randomGenerator = func() uint64 {
+		return 1
+	}
+}
 
 func newTestDialer() *testDialer {
 	return &testDialer{
@@ -42,10 +53,10 @@ func newTestDialer() *testDialer {
 //   f := newWithDialer(cfg, d) // Create a fluent logger using the stubbed dialer
 //   f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
 //
-//   d.waitForNextDialing(false) // 1st dialing attempt fails
-//   d.waitForNextDialing(false) // 2nd attempt fails too
-//   d.waitForNextDialing(false) // 3rd attempt fails too
-//   d.waitForNextDialing(true) // Finally the 4th attempt succeeds
+//   d.waitForNextDialing(false, false) // 1st dialing attempt fails
+//   d.waitForNextDialing(false, false) // 2nd attempt fails too
+//   d.waitForNextDialing(false, false) // 3rd attempt fails too
+//   d.waitForNextDialing(true, false) // Finally the 4th attempt succeeds
 //
 // Note that in the above example, the logger operates in async mode. As such,
 // a call to Post, PostWithTime or EncodeAndPostData is needed *before* calling
@@ -66,10 +77,10 @@ func newTestDialer() *testDialer {
 //       f.Close()
 //   }()
 //
-//   d.waitForNextDialing(false) // 1st dialing attempt fails
-//   d.waitForNextDialing(false) // 2nd attempt fails too
-//   d.waitForNextDialing(false) // 3rd attempt fails too
-//   d.waitForNextDialing(true) // Finally the 4th attempt succeeds
+//   d.waitForNextDialing(false, false) // 1st dialing attempt fails
+//   d.waitForNextDialing(false, false) // 2nd attempt fails too
+//   d.waitForNextDialing(false, false) // 3rd attempt fails too
+//   d.waitForNextDialing(true, false) // Finally the 4th attempt succeeds
 //
 // Moreover, waitForNextDialing() returns a *Conn which extends net.Conn to provide testing
 // facilities. For instance, you can call waitForNextWrite() on these connections, to
@@ -86,10 +97,10 @@ func newTestDialer() *testDialer {
 //   f := newWithDialer(cfg, d)
 //   f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
 //
-//   conn := d.waitForNextDialing(true) // Accept the dialing
+//   conn := d.waitForNextDialing(true, false) // Accept the dialing
 //   conn.waitForNextWrite(false, "") // Discard the 1st attempt to write the message
 //
-//   conn := d.waitForNextDialing(true)
+//   conn := d.waitForNextDialing(true, false)
 //   assertReceived(t, // t is *testing.T
 //       conn.waitForNextWrite(true, ""),
 //       "[\"tag_name\",1482493046,{\"foo\":\"bar\"},{}]")
@@ -115,27 +126,35 @@ type testDialer struct {
 	dialCh chan *Conn
 }
 
-// Dial is the stubbed method called by the logger to establish the connection to
+// DialContext is the stubbed method called by the logger to establish the connection to
 // Fluentd. It is paired with waitForNextDialing().
-func (d *testDialer) Dial(string, string) (net.Conn, error) {
+func (d *testDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
 	// It waits for a *Conn to be pushed into dialCh using waitForNextDialing(). When the
 	// *Conn is nil, the Dial is deemed to fail.
-	conn := <-d.dialCh
-	if conn == nil {
+	select {
+	case conn := <-d.dialCh:
+		if conn == nil {
+			return nil, errors.New("failed to dial")
+		}
+		return conn, nil
+	case <-ctx.Done():
 		return nil, errors.New("failed to dial")
 	}
-	return conn, nil
 }
 
 // waitForNextDialing is the method used by test cases below to indicate whether the next
 // dialing attempt made by the logger should succeed or not. See examples provided on
 // testDialer docs.
-func (d *testDialer) waitForNextDialing(accept bool) *Conn {
+func (d *testDialer) waitForNextDialing(accept bool, delayReads bool) *Conn {
 	var conn *Conn
 	if accept {
 		conn = &Conn{
 			nextWriteAttemptCh: make(chan nextWrite),
 			writtenCh:          make(chan []byte),
+		}
+
+		if delayReads {
+			conn.delayNextReadCh = make(chan struct{})
 		}
 	}
 
@@ -169,6 +188,8 @@ type Conn struct {
 	// writtenCh is used by Write() to signal to waitForNextWrite() when a write
 	// happened.
 	writtenCh chan []byte
+	// delayNextReadCh is used to delay next conn.Read() attempt when testing ack resp.
+	delayNextReadCh chan struct{}
 }
 
 // nextWrite is the struct passed by Conn.waitForNextWrite() to Conn.Write() through
@@ -198,6 +219,16 @@ func (c *Conn) waitForNextWrite(accept bool, ack string) []byte {
 // Read is a stubbed version of net.Conn Read() that returns the ack checksum of the last
 // Write operation.
 func (c *Conn) Read(b []byte) (int, error) {
+	if c.delayNextReadCh != nil {
+		select {
+		case _, ok := <-c.delayNextReadCh:
+			if !ok {
+				return 0, errors.New("connection has been closed")
+			}
+		default:
+		}
+	}
+
 	copy(b, c.buf)
 	return len(c.buf), nil
 }
@@ -232,6 +263,10 @@ func (c *Conn) SetWriteDeadline(t time.Time) error {
 }
 
 func (c *Conn) Close() error {
+	if c.delayNextReadCh != nil {
+		close(c.delayNextReadCh)
+	}
+
 	return nil
 }
 
@@ -438,7 +473,7 @@ func TestPostWithTime(t *testing.T) {
 				_ = f.PostWithTime("tag_name", time.Unix(1482493050, 0), map[string]string{"fluentd": "is awesome"})
 			}()
 
-			conn := d.waitForNextDialing(true)
+			conn := d.waitForNextDialing(true, false)
 			assertReceived(t,
 				conn.waitForNextWrite(true, ""),
 				"[\"acme.tag_name\",1482493046,{\"foo\":\"bar\"},{}]")
@@ -486,7 +521,7 @@ func TestReconnectAndResendAfterTransientFailure(t *testing.T) {
 			}()
 
 			// Accept the first connection dialing and write.
-			conn := d.waitForNextDialing(true)
+			conn := d.waitForNextDialing(true, false)
 			assertReceived(t,
 				conn.waitForNextWrite(true, ""),
 				"[\"tag_name\",1482493046,{\"foo\":\"bar\"},{}]")
@@ -494,10 +529,10 @@ func TestReconnectAndResendAfterTransientFailure(t *testing.T) {
 			// The next write will fail and the next connection dialing will be dropped
 			// to test if the logger is reconnecting as expected.
 			conn.waitForNextWrite(false, "")
-			d.waitForNextDialing(false)
+			d.waitForNextDialing(false, false)
 
 			// Next, we allow a new connection to be established and we allow the last message to be written.
-			conn = d.waitForNextDialing(true)
+			conn = d.waitForNextDialing(true, false)
 			assertReceived(t,
 				conn.waitForNextWrite(true, ""),
 				"[\"tag_name\",1482493050,{\"fluentd\":\"is awesome\"},{}]")
@@ -521,8 +556,6 @@ func timeout(t *testing.T, duration time.Duration, fn func(), reason string) {
 }
 
 func TestCloseOnFailingAsyncConnect(t *testing.T) {
-	t.Skip("Broken tests")
-
 	testcases := map[string]Config{
 		"with ForceStopAsyncSend and with RequestAck": {
 			Async:              true,
@@ -629,8 +662,6 @@ func TestNoPanicOnAsyncMultipleClose(t *testing.T) {
 }
 
 func TestCloseOnFailingAsyncReconnect(t *testing.T) {
-	t.Skip("Broken tests")
-
 	testcases := map[string]Config{
 		"with RequestAck": {
 			Async:              true,
@@ -657,8 +688,8 @@ func TestCloseOnFailingAsyncReconnect(t *testing.T) {
 
 			// Send a first message successfully.
 			_ = f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
-			conn := d.waitForNextDialing(true)
-			conn.waitForNextWrite(true, ackRespMsgp(t, "dgxdWAAAAABS/fwHIYJlTQ=="))
+			conn := d.waitForNextDialing(true, false)
+			conn.waitForNextWrite(true, ackRespMsgp(t, "dgxdWAAAAAABAAAAAAAAAA=="))
 
 			// Then try to send one during a transient connection failure.
 			_ = f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"bar": "baz"})
@@ -673,9 +704,33 @@ func TestCloseOnFailingAsyncReconnect(t *testing.T) {
 	}
 }
 
+func TestCloseWhileWaitingForAckResponse(t *testing.T) {
+	t.Parallel()
+
+	d := newTestDialer()
+	f, err := newWithDialer(Config{
+		Async:              true,
+		RequestAck:         true,
+		ForceStopAsyncSend: true,
+	}, d)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	_ = f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
+	conn := d.waitForNextDialing(true, true)
+	conn.waitForNextWrite(true, ackRespMsgp(t, "dgxdWAAAAAABAAAAAAAAAA=="))
+
+	// Test if the logger can really by closed while the client waits for a ack message.
+	timeout(t, 30*time.Second, func() {
+		f.Close()
+	}, "failed to close the logger")
+}
+
 func Benchmark_PostWithShortMessage(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	d := newTestDialer()
+	f, err := newWithDialer(Config{}, d)
 	if err != nil {
 		panic(err)
 	}
