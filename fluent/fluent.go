@@ -483,6 +483,8 @@ func (f *Fluent) connectWithRetry(ctx context.Context) error {
 			}
 
 			timeout = time.NewTimer(time.Duration(waitTime) * time.Millisecond)
+
+			fmt.Fprintf(os.Stderr, "[%s] An error happened during connect: %s. Retrying to connect in %dms.", time.Now().Format(time.RFC3339), err, waitTime)
 		case <-ctx.Done():
 			return errIsClosing
 		}
