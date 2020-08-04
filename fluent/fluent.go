@@ -15,8 +15,9 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
-	"github.com/tinylib/msgp/msgp"
 	"math/rand"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
 const (
@@ -84,6 +85,7 @@ type msgToSend struct {
 type Fluent struct {
 	Config
 
+	dialer      dialer
 	stopRunning chan bool
 	pending     chan *msgToSend
 	wg          sync.WaitGroup
@@ -93,7 +95,20 @@ type Fluent struct {
 }
 
 // New creates a new Logger.
-func New(config Config) (f *Fluent, err error) {
+func New(config Config) (*Fluent, error) {
+	if config.Timeout == 0 {
+		config.Timeout = defaultTimeout
+	}
+	return newWithDialer(config, &net.Dialer{
+		Timeout: config.Timeout,
+	})
+}
+
+type dialer interface {
+	Dial(string, string) (net.Conn, error)
+}
+
+func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 	if config.FluentNetwork == "" {
 		config.FluentNetwork = defaultNetwork
 	}
@@ -105,9 +120,6 @@ func New(config Config) (f *Fluent, err error) {
 	}
 	if config.FluentSocketPath == "" {
 		config.FluentSocketPath = defaultSocketPath
-	}
-	if config.Timeout == 0 {
-		config.Timeout = defaultTimeout
 	}
 	if config.WriteTimeout == 0 {
 		config.WriteTimeout = defaultWriteTimeout
@@ -128,15 +140,20 @@ func New(config Config) (f *Fluent, err error) {
 		fmt.Fprintf(os.Stderr, "fluent#New: AsyncConnect is now deprecated, please use Async instead")
 		config.Async = config.Async || config.AsyncConnect
 	}
+
 	if config.Async {
 		f = &Fluent{
 			Config:  config,
+			dialer:  d,
 			pending: make(chan *msgToSend, config.BufferLimit),
 		}
 		f.wg.Add(1)
 		go f.run()
 	} else {
-		f = &Fluent{Config: config}
+		f = &Fluent{
+			Config: config,
+			dialer: d,
+		}
 		err = f.connect()
 	}
 	return
@@ -340,12 +357,15 @@ func (f *Fluent) close(c net.Conn) {
 
 // connect establishes a new connection using the specified transport.
 func (f *Fluent) connect() (err error) {
-
 	switch f.Config.FluentNetwork {
 	case "tcp":
-		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), f.Config.Timeout)
+		f.conn, err = f.dialer.Dial(
+			f.Config.FluentNetwork,
+			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
 	case "unix":
-		f.conn, err = net.DialTimeout(f.Config.FluentNetwork, f.Config.FluentSocketPath, f.Config.Timeout)
+		f.conn, err = f.dialer.Dial(
+			f.Config.FluentNetwork,
+			f.Config.FluentSocketPath)
 	default:
 		err = NewErrUnknownNetwork(f.Config.FluentNetwork)
 	}
