@@ -2,6 +2,7 @@ package fluent
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -445,6 +446,59 @@ func TestPostWithTime(t *testing.T) {
 			assertReceived(t,
 				conn.waitForNextWrite(true, ""),
 				"[\"acme.tag_name\",1482493050,{\"fluentd\":\"is awesome\"},{}]")
+		})
+	}
+}
+
+func TestPostWithTimeAndContext(t *testing.T) {
+	testcases := map[string]Config{
+		"with Async": {
+			Async:         true,
+			MarshalAsJSON: true,
+			TagPrefix:     "acme",
+		},
+		"without Async": {
+			Async:         false,
+			MarshalAsJSON: true,
+			TagPrefix:     "acme",
+		},
+	}
+
+	for tcname := range testcases {
+		t.Run(tcname, func(t *testing.T) {
+			tc := testcases[tcname]
+			t.Parallel()
+
+			d := newTestDialer()
+			var f *Fluent
+			defer func() {
+				if f != nil {
+					f.Close()
+				}
+			}()
+			deadline := time.Now().Add(1 * time.Second)
+
+			go func() {
+				var err error
+				if f, err = newWithDialer(tc, d); err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				ctx, cancelFunc := context.WithDeadline(context.Background(), deadline)
+				defer cancelFunc()
+
+				_ = f.PostWithTimeAndContext(ctx, "tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
+				_ = f.PostWithTimeAndContext(ctx, "tag_name", time.Unix(1482493050, 0), map[string]string{"fluentd": "is awesome"})
+			}()
+
+			conn := d.waitForNextDialing(true)
+			assertReceived(t,
+				conn.waitForNextWrite(true, ""),
+				"[\"acme.tag_name\",1482493046,{\"foo\":\"bar\"},{}]")
+
+			assertReceived(t,
+				conn.waitForNextWrite(true, ""),
+				"[\"acme.tag_name\",1482493050,{\"fluentd\":\"is awesome\"},{}]")
+			assert.Equal(t, conn.writeDeadline, deadline)
 		})
 	}
 }
