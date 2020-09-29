@@ -146,6 +146,7 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 			Config:  config,
 			dialer:  d,
 			pending: make(chan *msgToSend, config.BufferLimit),
+			stopRunning: make(chan bool, 1),
 		}
 		f.wg.Add(1)
 		go f.run()
