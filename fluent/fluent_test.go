@@ -2,6 +2,7 @@ package fluent
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -14,6 +15,12 @@ import (
 	"github.com/bmizerany/assert"
 	"github.com/tinylib/msgp/msgp"
 )
+
+func init() {
+	randomGenerator = func() uint64 {
+		return 1
+	}
+}
 
 func newTestDialer() *testDialer {
 	return &testDialer{
@@ -114,16 +121,20 @@ type testDialer struct {
 	dialCh chan *Conn
 }
 
-// Dial is the stubbed method called by the logger to establish the connection to
+// DialContext is the stubbed method called by the logger to establish the connection to
 // Fluentd. It is paired with waitForNextDialing().
-func (d *testDialer) Dial(string, string) (net.Conn, error) {
+func (d *testDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
 	// It waits for a *Conn to be pushed into dialCh using waitForNextDialing(). When the
 	// *Conn is nil, the Dial is deemed to fail.
-	conn := <-d.dialCh
-	if conn == nil {
+	select {
+	case conn := <-d.dialCh:
+		if conn == nil {
+			return nil, errors.New("failed to dial")
+		}
+		return conn, nil
+	case <-ctx.Done():
 		return nil, errors.New("failed to dial")
 	}
-	return conn, nil
 }
 
 // waitForNextDialing is the method used by test cases below to indicate whether the next
@@ -520,8 +531,6 @@ func timeout(t *testing.T, duration time.Duration, fn func(), reason string) {
 }
 
 func TestCloseOnFailingAsyncConnect(t *testing.T) {
-	t.Skip("Broken tests")
-
 	testcases := map[string]Config{
 		"with ForceStopAsyncSend and with RequestAck": {
 			Async:              true,
@@ -573,8 +582,6 @@ func ackRespMsgp(t *testing.T, ack string) string {
 }
 
 func TestCloseOnFailingAsyncReconnect(t *testing.T) {
-	t.Skip("Broken tests")
-
 	testcases := map[string]Config{
 		"with RequestAck": {
 			Async:              true,
@@ -602,7 +609,7 @@ func TestCloseOnFailingAsyncReconnect(t *testing.T) {
 			// Send a first message successfully.
 			_ = f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
 			conn := d.waitForNextDialing(true)
-			conn.waitForNextWrite(true, ackRespMsgp(t, "dgxdWAAAAABS/fwHIYJlTQ=="))
+			conn.waitForNextWrite(true, ackRespMsgp(t, "dgxdWAAAAAABAAAAAAAAAA=="))
 
 			// Then try to send one during a transient connection failure.
 			_ = f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"bar": "baz"})
@@ -619,7 +626,8 @@ func TestCloseOnFailingAsyncReconnect(t *testing.T) {
 
 func Benchmark_PostWithShortMessage(b *testing.B) {
 	b.StopTimer()
-	f, err := New(Config{})
+	d := newTestDialer()
+	f, err := newWithDialer(Config{}, d)
 	if err != nil {
 		panic(err)
 	}
