@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"reflect"
@@ -570,6 +571,48 @@ func ackRespMsgp(t *testing.T, ack string) string {
 	}
 	ackW.Flush()
 	return buf.String()
+}
+
+func TestNoPanicOnAsyncClose(t *testing.T) {
+	testcases := []struct {
+		name        string
+		config      Config
+		shouldError bool
+	}{
+		{
+			name: "Channel closed before write",
+			config: Config{
+				Async: true,
+			},
+			shouldError: true,
+		},
+		{
+			name: "Channel not closed at all",
+			config: Config{
+				Async: true,
+			},
+			shouldError: false,
+		},
+	}
+	for _, testcase := range testcases {
+		t.Run(testcase.name, func(t *testing.T) {
+			t.Parallel()
+			d := newTestDialer()
+			f, err := newWithDialer(testcase.config, d)
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+			if testcase.shouldError {
+				f.Close()
+			}
+			e := f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
+			if testcase.shouldError {
+				assert.Equal(t, fmt.Errorf("fluent#appendBuffer: Logger already closed"), e)
+			} else {
+				assert.Equal(t, nil, e)
+			}
+		})
+	}
 }
 
 func TestCloseOnFailingAsyncReconnect(t *testing.T) {

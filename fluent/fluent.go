@@ -85,10 +85,12 @@ type msgToSend struct {
 type Fluent struct {
 	Config
 
-	dialer      dialer
-	stopRunning chan bool
-	pending     chan *msgToSend
-	wg          sync.WaitGroup
+	dialer       dialer
+	stopRunning  chan bool
+	pending      chan *msgToSend
+	pendingMutex sync.RWMutex
+	chanClosed   bool
+	wg           sync.WaitGroup
 
 	muconn sync.Mutex
 	conn   net.Conn
@@ -143,10 +145,11 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 
 	if config.Async {
 		f = &Fluent{
-			Config:  config,
-			dialer:  d,
-			pending: make(chan *msgToSend, config.BufferLimit),
-			stopRunning: make(chan bool, 1),
+			Config:       config,
+			dialer:       d,
+			pending:      make(chan *msgToSend, config.BufferLimit),
+			pendingMutex: sync.RWMutex{},
+			stopRunning:  make(chan bool, 1),
 		}
 		f.wg.Add(1)
 		go f.run()
@@ -325,6 +328,9 @@ func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (msg 
 // Close closes the connection, waiting for pending logs to be sent
 func (f *Fluent) Close() (err error) {
 	if f.Config.Async {
+		f.pendingMutex.Lock()
+		f.chanClosed = true
+		f.pendingMutex.Unlock()
 		if f.Config.ForceStopAsyncSend {
 			f.stopRunning <- true
 			close(f.stopRunning)
@@ -338,6 +344,11 @@ func (f *Fluent) Close() (err error) {
 
 // appendBuffer appends data to buffer with lock.
 func (f *Fluent) appendBuffer(msg *msgToSend) error {
+	f.pendingMutex.RLock()
+	defer f.pendingMutex.RUnlock()
+	if f.chanClosed {
+		return fmt.Errorf("fluent#appendBuffer: Logger already closed")
+	}
 	select {
 	case f.pending <- msg:
 	default:
