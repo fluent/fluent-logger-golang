@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.6.0
+* Add support for `ppc64le`
+* Fix unexpected behaviors&panic around `Close`
+
 ## 1.5.0
 * Add `ForceStopAsyncSend` to stop asynchronous message transferring immediately when `close()` called
 * Fix to lock connections only when needed
