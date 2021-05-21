@@ -327,8 +327,13 @@ func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (msg 
 
 // Close closes the connection, waiting for pending logs to be sent
 func (f *Fluent) Close() (err error) {
+	defer f.close(f.conn)
 	if f.Config.Async {
 		f.pendingMutex.Lock()
+		if f.chanClosed {
+			f.pendingMutex.Unlock()
+			return nil
+		}
 		f.chanClosed = true
 		f.pendingMutex.Unlock()
 		if f.Config.ForceStopAsyncSend {
@@ -338,8 +343,7 @@ func (f *Fluent) Close() (err error) {
 		close(f.pending)
 		f.wg.Wait()
 	}
-	f.close(f.conn)
-	return
+	return nil
 }
 
 // appendBuffer appends data to buffer with lock.
