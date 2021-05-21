@@ -615,6 +615,19 @@ func TestNoPanicOnAsyncClose(t *testing.T) {
 	}
 }
 
+func TestNoPanicOnAsyncMultipleClose(t *testing.T) {
+	config := Config{
+		Async: true,
+	}
+	d := newTestDialer()
+	f, err := newWithDialer(config, d)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	f.Close()
+	f.Close()
+}
+
 func TestCloseOnFailingAsyncReconnect(t *testing.T) {
 	t.Skip("Broken tests")
 
