@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.6.1
+* Add another fix for `Close` called twice in Async
+
 ## 1.6.0
 * Add support for `ppc64le`
 * Fix unexpected behaviors&panic around `Close`
