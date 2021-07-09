@@ -1,6 +1,7 @@
 package fluent
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -378,6 +379,13 @@ func (f *Fluent) connect() (err error) {
 		f.conn, err = f.dialer.Dial(
 			f.Config.FluentNetwork,
 			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
+	case "tls":
+		config := &tls.Config{InsecureSkipVerify: true}
+		f.conn, err = tls.DialWithDialer(
+			&net.Dialer{Timeout: f.Config.Timeout},
+			"tcp",
+			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), config,
+		)
 	case "unix":
 		f.conn, err = f.dialer.Dial(
 			f.Config.FluentNetwork,
