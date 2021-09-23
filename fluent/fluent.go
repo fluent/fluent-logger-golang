@@ -38,19 +38,20 @@ const (
 )
 
 type Config struct {
-	FluentPort         int           `json:"fluent_port"`
-	FluentHost         string        `json:"fluent_host"`
-	FluentNetwork      string        `json:"fluent_network"`
-	FluentSocketPath   string        `json:"fluent_socket_path"`
-	Timeout            time.Duration `json:"timeout"`
-	WriteTimeout       time.Duration `json:"write_timeout"`
-	BufferLimit        int           `json:"buffer_limit"`
-	RetryWait          int           `json:"retry_wait"`
-	MaxRetry           int           `json:"max_retry"`
-	MaxRetryWait       int           `json:"max_retry_wait"`
-	TagPrefix          string        `json:"tag_prefix"`
-	Async              bool          `json:"async"`
-	ForceStopAsyncSend bool          `json:"force_stop_async_send"`
+	FluentPort          int           `json:"fluent_port"`
+	FluentHost          string        `json:"fluent_host"`
+	FluentNetwork       string        `json:"fluent_network"`
+	FluentSocketPath    string        `json:"fluent_socket_path"`
+	Timeout             time.Duration `json:"timeout"`
+	WriteTimeout        time.Duration `json:"write_timeout"`
+	BufferLimit         int           `json:"buffer_limit"`
+	RetryWait           int           `json:"retry_wait"`
+	MaxRetry            int           `json:"max_retry"`
+	MaxRetryWait        int           `json:"max_retry_wait"`
+	TagPrefix           string        `json:"tag_prefix"`
+	Async               bool          `json:"async"`
+	ForceStopAsyncSend  bool          `json:"force_stop_async_send"`
+	AsyncResultCallback func(data []byte, err error)
 	// Deprecated: Use Async instead
 	AsyncConnect  bool `json:"async_connect"`
 	MarshalAsJSON bool `json:"marshal_as_json"`
@@ -405,6 +406,13 @@ func (f *Fluent) run() {
 			err := f.write(entry)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "[%s] Unable to send logs to fluentd, reconnecting...\n", time.Now().Format(time.RFC3339))
+			}
+			if f.AsyncResultCallback != nil {
+				var data []byte
+				if entry != nil {
+					data = entry.data
+				}
+				f.AsyncResultCallback(data, err)
 			}
 		}
 		select {
