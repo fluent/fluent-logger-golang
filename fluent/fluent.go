@@ -515,6 +515,12 @@ func (f *Fluent) run(ctx context.Context) {
 				}
 				f.AsyncResultCallback(data, err)
 			}
+		}
+		select {
+		case stopRunning, ok := <-f.stopRunning:
+			if stopRunning || !ok {
+				drainEvents = true
+			}
 		case <-f.stopRunning:
 			fmt.Fprintf(os.Stderr, "[%s] Discarding queued events...\n", time.Now().Format(time.RFC3339))
 
