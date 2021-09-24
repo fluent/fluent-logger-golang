@@ -121,6 +121,12 @@ The default is false.
 When Async is enabled, immediately discard the event queue on close() and return (instead of trying MaxRetry times for each event in the queue before returning)
 The default is false.
 
+### AsyncResultCallback
+
+When Async is enabled, if this is callback is provided, it will be called on every write to Fluentd. The callback function
+takes two arguments - a `[]byte` of the message that was to be sent and an `error`. If the `error` is not nil this means the 
+delivery of the message was unsuccessful.
+
 ### SubSecondPrecision
 
 Enable time encoding as EventTime, which contains sub-second precision values. The messages encoded with this option can be received only by Fluentd v0.14 or later.
