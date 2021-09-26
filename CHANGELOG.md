@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.6.2
+* Add `AsyncResultCallback` to allow users to handle errors when using asynchronous message sending. 
+
 ## 1.6.1
 * Add another fix for `Close` called twice in Async
 
