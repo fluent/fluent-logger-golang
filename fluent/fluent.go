@@ -213,13 +213,18 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 		fields := msgtype.NumField()
 		for i := 0; i < fields; i++ {
 			field := msgtype.Field(i)
+			value := msg.FieldByIndex(field.Index)
+			// ignore unexported fields
+			if !value.CanInterface() {
+				continue
+			}
 			name := field.Name
 			if n1 := field.Tag.Get("msg"); n1 != "" {
 				name = n1
 			} else if n2 := field.Tag.Get("codec"); n2 != "" {
 				name = n2
 			}
-			kv[name] = msg.FieldByIndex(field.Index).Interface()
+			kv[name] = value.Interface()
 		}
 		return f.EncodeAndPostData(tag, tm, kv)
 	}

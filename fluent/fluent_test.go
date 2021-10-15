@@ -436,6 +436,8 @@ func TestPostWithTime(t *testing.T) {
 
 				_ = f.PostWithTime("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
 				_ = f.PostWithTime("tag_name", time.Unix(1482493050, 0), map[string]string{"fluentd": "is awesome"})
+				_ = f.PostWithTime("tag_name", time.Unix(1634263200, 0),
+					struct {Welcome string `msg:"welcome"`; cannot string}{"to use", "see me"})
 			}()
 
 			conn := d.waitForNextDialing(true)
@@ -446,6 +448,9 @@ func TestPostWithTime(t *testing.T) {
 			assertReceived(t,
 				conn.waitForNextWrite(true, ""),
 				"[\"acme.tag_name\",1482493050,{\"fluentd\":\"is awesome\"},{}]")
+			assertReceived(t,
+				conn.waitForNextWrite(true, ""),
+				"[\"acme.tag_name\",1634263200,{\"welcome\":\"to use\"},{}]")
 		})
 	}
 }
