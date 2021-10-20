@@ -581,6 +581,7 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
 		if f.conn == nil {
 			return fmt.Errorf("connection has been closed before writing to it")
 		}
+		f.muconn.Unlock()
 
 		t := f.Config.WriteTimeout
 		if time.Duration(0) < t {
