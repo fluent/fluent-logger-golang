@@ -101,7 +101,7 @@ type Fluent struct {
 	chanClosed     bool
 	wg             sync.WaitGroup
 
-	muconn sync.Mutex
+	muconn sync.RWMutex
 	conn   net.Conn
 }
 
@@ -158,10 +158,11 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 		f = &Fluent{
 			Config:         config,
 			dialer:         d,
+			stopRunning:    make(chan struct{}),
 			cancelDialings: cancel,
 			pending:        make(chan *msgToSend, config.BufferLimit),
 			pendingMutex:   sync.RWMutex{},
-			stopRunning:    make(chan struct{}),
+			muconn:         sync.RWMutex{},
 		}
 
 		f.wg.Add(1)
@@ -170,6 +171,7 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 		f = &Fluent{
 			Config: config,
 			dialer: d,
+			muconn: sync.RWMutex{},
 		}
 		err = f.connect(context.Background())
 	}
@@ -508,17 +510,14 @@ func e(x, y float64) int {
 
 func (f *Fluent) write(ctx context.Context, msg *msgToSend) error {
 	writer := func() (bool, error) {
-		// This function is used to ensure muconn is properly locked and unlocked
-		// between each retry. This gives the oportunity to other goroutines to
-		// lock it (e.g. to close the connection).
 		f.muconn.Lock()
-
 		if f.conn == nil {
 			if err := f.connectOrRetry(ctx); err != nil {
 				f.muconn.Unlock()
 				return false, err
 			}
 		}
+		f.muconn.Unlock()
 
 		t := f.Config.WriteTimeout
 		if time.Duration(0) < t {
@@ -527,16 +526,19 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) error {
 			f.conn.SetWriteDeadline(time.Time{})
 		}
 
+		f.muconn.RLock()
+		if f.conn == nil {
+			return false, fmt.Errorf("connection has been closed before writing to it.")
+		}
 		_, err := f.conn.Write(msg.data)
+		f.muconn.RUnlock()
+
 		if err != nil {
+			f.muconn.Lock()
 			f.close()
 			f.muconn.Unlock()
 			return true, err
 		}
-
-		// Unlock muconn before waiting for the ack response (if required) to not block
-		// other messages from being sent (this would greatly degrade performance).
-		f.muconn.Unlock()
 
 		// Acknowledgment check
 		if msg.ack != "" {
@@ -551,7 +553,11 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) error {
 
 			if err != nil || resp.Ack != msg.ack {
 				fmt.Fprintf(os.Stderr, "fluent#write: message ack (%s) doesn't match expected one (%s). Closing connection...", resp.Ack, msg.ack)
+
+				f.muconn.Lock()
 				f.close()
+				f.muconn.Unlock()
+
 				return true, err
 			}
 		}
