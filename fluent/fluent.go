@@ -270,7 +270,7 @@ func (f *Fluent) postRawData(msg *msgToSend) error {
 		return f.appendBuffer(msg)
 	}
 	// Synchronous write
-	return f.write(context.Background(), msg)
+	return f.writeWithRetry(context.Background(), msg)
 }
 
 // For sending forward protocol adopted JSON
@@ -427,16 +427,16 @@ func (f *Fluent) connect(ctx context.Context) (err error) {
 var errIsClosing = errors.New("fluent logger is closing")
 
 // Caller should take care of locking muconn first.
-func (f *Fluent) connectOrRetry(ctx context.Context) error {
-	// Use a Time channel instead of time.Sleep() to avoid blocking this
-	// goroutine during possibly way too much time (because of the exponential
-	// back-off retry).
+func (f *Fluent) connectWithRetry(ctx context.Context) error {
+	// A Time channel is used instead of time.Sleep() to avoid blocking this
+	// goroutine during way too much time (because of the exponential back-off
+	// retry).
 	// time.NewTimer() is used instead of time.After() to avoid leaking the
 	// timer channel (cf. https://pkg.go.dev/time#After).
 	timeout := time.NewTimer(time.Duration(0))
 	defer func() {
 		// timeout.Stop() is called in a function literal instead of being
-		// defered directly
+		// defered directly as it's re-assigned below when the retry loop spins.
 		timeout.Stop()
 	}()
 
@@ -461,8 +461,6 @@ func (f *Fluent) connectOrRetry(ctx context.Context) error {
 			}
 
 			timeout = time.NewTimer(time.Duration(waitTime) * time.Millisecond)
-
-			fmt.Fprintf(os.Stderr, "[%s] An error happened during connect: %s. Retrying to connect in %dms.", time.Now().Format(time.RFC3339), err, waitTime)
 		case <-ctx.Done():
 			return errIsClosing
 		}
@@ -484,7 +482,7 @@ func (f *Fluent) run(ctx context.Context) {
 				return
 			}
 
-			err := f.write(ctx, entry)
+			err := f.writeWithRetry(ctx, entry)
 			if err != nil && err != errIsClosing {
 				fmt.Fprintf(os.Stderr, "[%s] Unable to send logs to fluentd, reconnecting...\n", time.Now().Format(time.RFC3339))
 			}
@@ -508,16 +506,51 @@ func e(x, y float64) int {
 	return int(math.Pow(x, y))
 }
 
-func (f *Fluent) write(ctx context.Context, msg *msgToSend) error {
-	writer := func() (bool, error) {
-		f.muconn.Lock()
-		if f.conn == nil {
-			if err := f.connectOrRetry(ctx); err != nil {
-				f.muconn.Unlock()
-				return false, err
-			}
+func (f *Fluent) writeWithRetry(ctx context.Context, msg *msgToSend) error {
+	for i := 0; i < f.Config.MaxRetry; i++ {
+		if retry, err := f.write(ctx, msg); !retry {
+			return err
 		}
-		f.muconn.Unlock()
+	}
+
+	return fmt.Errorf("fluent#write: failed to write after %d attempts", f.Config.MaxRetry)
+}
+
+// write writes the provided msg to fluentd server. Its first return values is
+// a bool indicating whether the write should be retried.
+// This method relies on function literals to execute muconn.Unlock or
+// muconn.RUnlock in deferred calls to ensure the mutex is unlocked even in
+// the case of panic recovering.
+func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
+	closer := func() {
+		f.muconn.Lock()
+		defer f.muconn.Unlock()
+
+		f.close()
+	}
+
+	if err := func() (err error) {
+		f.muconn.Lock()
+		defer f.muconn.Unlock()
+
+		if f.conn == nil {
+			err = f.connectWithRetry(ctx)
+		}
+
+		return err
+	}(); err != nil {
+		// Here, we don't want to retry the write since connectWithRetry already
+		// retries Config.MaxRetry times to connect.
+		return false, fmt.Errorf("fluent#write: %v", err)
+	}
+
+	if err := func() (err error) {
+		f.muconn.RLock()
+		defer f.muconn.RUnlock()
+
+		if f.conn == nil {
+			return fmt.Errorf("connection has been closed before writing to it.")
+		}
 
 		t := f.Config.WriteTimeout
 		if time.Duration(0) < t {
@@ -526,50 +559,32 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) error {
 			f.conn.SetWriteDeadline(time.Time{})
 		}
 
-		f.muconn.RLock()
-		if f.conn == nil {
-			return false, fmt.Errorf("connection has been closed before writing to it.")
-		}
-		_, err := f.conn.Write(msg.data)
-		f.muconn.RUnlock()
+		_, err = f.conn.Write(msg.data)
+		return err
+	}(); err != nil {
+		closer()
+		return true, fmt.Errorf("fluent#write: %v", err)
+	}
 
-		if err != nil {
-			f.muconn.Lock()
-			f.close()
-			f.muconn.Unlock()
+	// Acknowledgment check
+	if msg.ack != "" {
+		resp := &AckResp{}
+		var err error
+		if f.Config.MarshalAsJSON {
+			dec := json.NewDecoder(f.conn)
+			err = dec.Decode(resp)
+		} else {
+			r := msgp.NewReader(f.conn)
+			err = resp.DecodeMsg(r)
+		}
+
+		if err != nil || resp.Ack != msg.ack {
+			fmt.Fprintf(os.Stderr, "fluent#write: message ack (%s) doesn't match expected one (%s). Closing connection...", resp.Ack, msg.ack)
+
+			closer()
 			return true, err
 		}
-
-		// Acknowledgment check
-		if msg.ack != "" {
-			resp := &AckResp{}
-			if f.Config.MarshalAsJSON {
-				dec := json.NewDecoder(f.conn)
-				err = dec.Decode(resp)
-			} else {
-				r := msgp.NewReader(f.conn)
-				err = resp.DecodeMsg(r)
-			}
-
-			if err != nil || resp.Ack != msg.ack {
-				fmt.Fprintf(os.Stderr, "fluent#write: message ack (%s) doesn't match expected one (%s). Closing connection...", resp.Ack, msg.ack)
-
-				f.muconn.Lock()
-				f.close()
-				f.muconn.Unlock()
-
-				return true, err
-			}
-		}
-
-		return false, nil
 	}
 
-	for i := 0; i < f.Config.MaxRetry; i++ {
-		if retry, err := writer(); !retry {
-			return err
-		}
-	}
-
-	return fmt.Errorf("fluent#write: failed to write after %d attempts", f.Config.MaxRetry)
+	return false, nil
 }
