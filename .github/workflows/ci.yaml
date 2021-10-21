@@ -23,8 +23,10 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: ${{ matrix.golang }}
-      - run: |
+      - name: Install requirements
+        run: |
           go get github.com/bmizerany/assert
           go get github.com/philhofer/fwd
           go get github.com/tinylib/msgp
-      - run: go test
+      - name: Test
+        run: go test -v ./fluent
