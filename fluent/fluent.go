@@ -483,8 +483,6 @@ func (f *Fluent) connectWithRetry(ctx context.Context) error {
 			}
 
 			timeout = time.NewTimer(time.Duration(waitTime) * time.Millisecond)
-
-			fmt.Fprintf(os.Stderr, "[%s] An error happened during connect: %s. Retrying to connect in %dms.", time.Now().Format(time.RFC3339), err, waitTime)
 		case <-ctx.Done():
 			return errIsClosing
 		}
@@ -581,7 +579,21 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
 		if f.conn == nil {
 			return fmt.Errorf("connection has been closed before writing to it")
 		}
-		f.muconn.Unlock()
+
+		return err
+	}(); err != nil {
+		// Here, we don't want to retry the write since connectWithRetry already
+		// retries Config.MaxRetry times to connect.
+		return false, fmt.Errorf("fluent#write: %v", err)
+	}
+
+	if err := func() (err error) {
+		f.muconn.RLock()
+		defer f.muconn.RUnlock()
+
+		if f.conn == nil {
+			return fmt.Errorf("connection has been closed before writing to it.")
+		}
 
 		t := f.Config.WriteTimeout
 		if time.Duration(0) < t {
