@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  pull_request:
+    branches: '*'
+  push:
+    branches:
+      - master
+      - main
+      - 'release-*'
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu, macos, windows]
+        golang: ['1.11', '1.12', '1.16', '1.17']
+        # currently, we cannot run non-x86_64 machines on Github Actions cloud env.
+    runs-on: ${{ matrix.os }}-latest
+    name: CI golang ${{ matrix.golang }} on ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.golang }}
+      - run: |
+          go get github.com/bmizerany/assert
+          go get github.com/philhofer/fwd
+          go get github.com/tinylib/msgp
+      - run: go test
