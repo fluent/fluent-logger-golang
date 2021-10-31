@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.6.3
+* Fix not to panic when accessing unexported struct fields
+
 ## 1.6.2
 * Add `AsyncResultCallback` to allow users to handle errors when using asynchronous message sending. 
 
