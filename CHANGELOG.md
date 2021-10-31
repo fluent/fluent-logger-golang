@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 1.7.0
+* Update connection management to stop logger during connection failures
+
 ## 1.6.3
 * Fix not to panic when accessing unexported struct fields
 
