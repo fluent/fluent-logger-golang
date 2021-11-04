@@ -732,6 +732,39 @@ func TestCloseWhileWaitingForAckResponse(t *testing.T) {
 	}, "failed to close the logger")
 }
 
+func TestSyncWriteAfterCloseFails(t *testing.T) {
+	d := newTestDialer()
+
+	go func() {
+		f, err := newWithDialer(Config{Async: false}, d)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+
+		err = f.PostWithTime("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+
+		err = f.Close()
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+
+		// Now let's post some event after Fluent.Close().
+		err = f.PostWithTime("tag_name", time.Unix(1482493050, 0), map[string]string{"foo": "buzz"})
+
+		// The event submission must fail,
+		assert.NotEqual(t, err, nil);
+
+		// and also must keep Fluentd closed.
+		assert.NotEqual(t, f.closed, false);
+	}()
+
+	conn := d.waitForNextDialing(true, false)
+	conn.waitForNextWrite(true, "")
+}
+
 func Benchmark_PostWithShortMessage(b *testing.B) {
 	b.StopTimer()
 	d := newTestDialer()
