@@ -34,6 +34,12 @@ const (
 	defaultMaxRetryWait           = 60000
 	defaultMaxRetry               = 13
 	defaultReconnectWaitIncreRate = 1.5
+	// Default sub-second precision value to false since it is only compatible
+	// with fluentd versions v0.14 and above.
+	defaultSubSecondPrecision = false
+
+	// Default TLS : Disabled
+	defaultTlsInsecureSkipVerify = false
 )
 
 // randomGenerator is used by getUniqueId to generate ack hashes. Its value is replaced
@@ -67,6 +73,9 @@ type Config struct {
 	// respond with an acknowledgement. This option improves the reliability
 	// of the message transmission.
 	RequestAck bool `json:"request_ack"`
+
+	// To enable TLS
+	TlsInsecureSkipVerify bool `json: "tls_insecure_skip_verify"`
 }
 
 type ErrUnknownNetwork struct {
@@ -144,6 +153,9 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 	}
 	if config.MaxRetryWait == 0 {
 		config.MaxRetryWait = defaultMaxRetryWait
+	}
+	if config.TlsInsecureSkipVerify == nil {
+		config.TlsInsecureSkipVerify = defaultTlsInsecureSkipVerify
 	}
 	if config.AsyncConnect {
 		fmt.Fprintf(os.Stderr, "fluent#New: AsyncConnect is now deprecated, please use Async instead")
@@ -417,7 +429,7 @@ func (f *Fluent) connect(ctx context.Context) (err error) {
 			f.Config.FluentNetwork,
 			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
 	case "tls":
-		tlsConfig := &tls.Config{InsecureSkipVerify: false}
+		tlsConfig := &tls.Config{InsecureSkipVerify: config.TlsInsecureSkipVerify}
 		f.conn, err = tls.DialWithDialer(
 			&net.Dialer{Timeout: f.Config.Timeout},
 			"tcp",
