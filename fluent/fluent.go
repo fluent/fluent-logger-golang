@@ -38,7 +38,7 @@ const (
 	// with fluentd versions v0.14 and above.
 	defaultSubSecondPrecision = false
 
-	// Default value whether to skip checking insecure certs on TLS connections
+	// Default value whether to skip checking insecure certs on TLS connections.
 	defaultTlsInsecureSkipVerify = false
 )
 
