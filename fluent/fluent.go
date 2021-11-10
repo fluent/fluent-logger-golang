@@ -38,7 +38,7 @@ const (
 	// with fluentd versions v0.14 and above.
 	defaultSubSecondPrecision = false
 
-	// Default TLS : Disabled
+	// Default value whether to skip checking insecure certs on TLS connections
 	defaultTlsInsecureSkipVerify = false
 )
 
@@ -74,7 +74,7 @@ type Config struct {
 	// of the message transmission.
 	RequestAck bool `json:"request_ack"`
 
-	// To enable TLS
+	// Flag to skip verifying insecure certs on TLS connections
 	TlsInsecureSkipVerify bool `json: "tls_insecure_skip_verify"`
 }
 
@@ -515,12 +515,6 @@ func (f *Fluent) run(ctx context.Context) {
 				}
 				f.AsyncResultCallback(data, err)
 			}
-		}
-		select {
-		case stopRunning, ok := <-f.stopRunning:
-			if stopRunning || !ok {
-				drainEvents = true
-			}
 		case <-f.stopRunning:
 			fmt.Fprintf(os.Stderr, "[%s] Discarding queued events...\n", time.Now().Format(time.RFC3339))
 
@@ -578,21 +572,6 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
 
 		if f.conn == nil {
 			return fmt.Errorf("connection has been closed before writing to it")
-		}
-
-		return err
-	}(); err != nil {
-		// Here, we don't want to retry the write since connectWithRetry already
-		// retries Config.MaxRetry times to connect.
-		return false, fmt.Errorf("fluent#write: %v", err)
-	}
-
-	if err := func() (err error) {
-		f.muconn.RLock()
-		defer f.muconn.RUnlock()
-
-		if f.conn == nil {
-			return fmt.Errorf("connection has been closed before writing to it.")
 		}
 
 		t := f.Config.WriteTimeout
