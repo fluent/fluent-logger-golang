@@ -417,11 +417,11 @@ func (f *Fluent) connect(ctx context.Context) (err error) {
 			f.Config.FluentNetwork,
 			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
 	case "tls":
-		config := &tls.Config{InsecureSkipVerify: true}
+		tlsConfig := &tls.Config{InsecureSkipVerify: false}
 		f.conn, err = tls.DialWithDialer(
 			&net.Dialer{Timeout: f.Config.Timeout},
 			"tcp",
-			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), config,
+			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), tlsConfig,
 		)
 	case "unix":
 		f.conn, err = f.dialer.DialContext(ctx,
