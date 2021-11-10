@@ -154,7 +154,7 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 	if config.MaxRetryWait == 0 {
 		config.MaxRetryWait = defaultMaxRetryWait
 	}
-	if config.TlsInsecureSkipVerify == nil {
+	if !config.TlsInsecureSkipVerify {
 		config.TlsInsecureSkipVerify = defaultTlsInsecureSkipVerify
 	}
 	if config.AsyncConnect {
@@ -429,7 +429,7 @@ func (f *Fluent) connect(ctx context.Context) (err error) {
 			f.Config.FluentNetwork,
 			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
 	case "tls":
-		tlsConfig := &tls.Config{InsecureSkipVerify: config.TlsInsecureSkipVerify}
+		tlsConfig := &tls.Config{InsecureSkipVerify: f.Config.TlsInsecureSkipVerify}
 		f.conn, err = tls.DialWithDialer(
 			&net.Dialer{Timeout: f.Config.Timeout},
 			"tcp",
@@ -571,7 +571,7 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
 		defer f.muconn.RUnlock()
 
 		if f.conn == nil {
-			return fmt.Errorf("connection has been closed before writing to it.")
+			return fmt.Errorf("connection has been closed before writing to it")
 		}
 
 		t := f.Config.WriteTimeout
