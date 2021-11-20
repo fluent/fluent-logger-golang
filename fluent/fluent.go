@@ -2,6 +2,7 @@ package fluent
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,6 +37,9 @@ const (
 	// Default sub-second precision value to false since it is only compatible
 	// with fluentd versions v0.14 and above.
 	defaultSubSecondPrecision = false
+
+	// Default value whether to skip checking insecure certs on TLS connections.
+	defaultTlsInsecureSkipVerify = false
 )
 
 // randomGenerator is used by getUniqueId to generate ack hashes. Its value is replaced
@@ -69,6 +73,9 @@ type Config struct {
 	// respond with an acknowledgement. This option improves the reliability
 	// of the message transmission.
 	RequestAck bool `json:"request_ack"`
+
+	// Flag to skip verifying insecure certs on TLS connections
+	TlsInsecureSkipVerify bool `json: "tls_insecure_skip_verify"`
 }
 
 type ErrUnknownNetwork struct {
@@ -146,6 +153,9 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 	}
 	if config.MaxRetryWait == 0 {
 		config.MaxRetryWait = defaultMaxRetryWait
+	}
+	if !config.TlsInsecureSkipVerify {
+		config.TlsInsecureSkipVerify = defaultTlsInsecureSkipVerify
 	}
 	if config.AsyncConnect {
 		fmt.Fprintf(os.Stderr, "fluent#New: AsyncConnect is now deprecated, please use Async instead")
@@ -418,6 +428,13 @@ func (f *Fluent) connect(ctx context.Context) (err error) {
 		f.conn, err = f.dialer.DialContext(ctx,
 			f.Config.FluentNetwork,
 			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
+	case "tls":
+		tlsConfig := &tls.Config{InsecureSkipVerify: f.Config.TlsInsecureSkipVerify}
+		f.conn, err = tls.DialWithDialer(
+			&net.Dialer{Timeout: f.Config.Timeout},
+			"tcp",
+			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort), tlsConfig,
+		)
 	case "unix":
 		f.conn, err = f.dialer.DialContext(ctx,
 			f.Config.FluentNetwork,
@@ -554,7 +571,7 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
 		defer f.muconn.RUnlock()
 
 		if f.conn == nil {
-			return fmt.Errorf("connection has been closed before writing to it.")
+			return fmt.Errorf("connection has been closed before writing to it")
 		}
 
 		t := f.Config.WriteTimeout
