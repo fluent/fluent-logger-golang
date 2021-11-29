@@ -60,7 +60,12 @@ f := fluent.New(fluent.Config{FluentPort: 80, FluentHost: "example.com"})
 
 ### FluentNetwork
 
-Specify the network protocol, as "tcp" (use `FluentHost` and `FluentPort`) or "unix" (use `FluentSocketPath`).
+Specify the network protocol. The supported values are:
+
+ * "tcp" (use `FluentHost` and `FluentPort`)
+ * "tls" (use`FluentHost` and `FluentPort`)
+ * "unix" (use `FluentSocketPath`)
+
 The default is "tcp".
 
 ### FluentHost
@@ -141,6 +146,10 @@ The default is false.
 
 Sets whether to request acknowledgment from Fluentd to increase the reliability
 of the connection. The default is false.
+
+### TlsInsecureSkipVerify
+
+Skip verifying the server certificate. Useful for development and testing. The default is false.
 
 ## FAQ
 
