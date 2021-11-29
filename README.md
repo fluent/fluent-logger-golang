@@ -159,7 +159,24 @@ Skip verifying the server certificate. Useful for development and testing. The d
 
 This logger doesn't support those features. Patches are welcome!
 
+### Is it allowed to call `Fluent.Post()` after connection close?
+
+Before v1.8.0, the Fluent logger silently reopened connections whenever
+`Fluent.Post()` was called.
+
+```go
+logger, _ := fluent.New(fluent.Config{})
+logger.Post(tag, data)
+logger.Close()
+logger.Post(tag, data)  /* reopen connection */
+```
+
+However, this behavior was confusing, in particular when multiple goroutines
+were involved. Starting v1.8.0, the logger no longer accepts `Fluent.Post()`
+after `Fluent.Close()`, and instead returns a "Logger already closed" error.
+
 ## Tests
 ```
+
 go test
 ```
