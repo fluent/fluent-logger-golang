@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.8.0
+* Support logging over secure connections using TLS.
+* Change `Fluent.Post()` to return an error after connection close.
+
 ## 1.7.0
 * Update connection management to stop logger during connection failures
 
