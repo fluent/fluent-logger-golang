@@ -65,6 +65,11 @@ type Config struct {
 	AsyncConnect  bool `json:"async_connect"`
 	MarshalAsJSON bool `json:"marshal_as_json"`
 
+	// AsyncReconnectInterval defines the interval (ms) at which the connection
+	// to the fluentd-address is re-established. This option is useful if the address
+	// may resolve to one or more IP addresses, e.g. a Consul service address.
+	AsyncReconnectInterval int64 `json:"async_reconnect_interval"`
+
 	// Sub-second precision timestamps are only possible for those using fluentd
 	// v0.14+ and serializing their messages with msgpack.
 	SubSecondPrecision bool `json:"sub_second_precision"`
@@ -107,6 +112,10 @@ type Fluent struct {
 	pendingMutex   sync.RWMutex
 	closed         bool
 	wg             sync.WaitGroup
+
+	// time (unix milliseconds) at which the most recent connection to fluentd
+	// address was established.
+	latestReconnectTime int64
 
 	muconn sync.RWMutex
 	conn   net.Conn
@@ -447,6 +456,13 @@ func (f *Fluent) connect(ctx context.Context) (err error) {
 		err = NewErrUnknownNetwork(f.Config.FluentNetwork)
 	}
 
+	if err == nil {
+		// time.Now().UnixMilli() is possible but only introduced in Go 1.17
+		// AsyncReconnectInterval is defined in ms in line with other options
+		// here, so we want to use ms throughout.
+		f.latestReconnectTime = time.Now().Unix() * int64(time.Millisecond)
+	}
+
 	return err
 }
 
@@ -506,6 +522,17 @@ func (f *Fluent) run(ctx context.Context) {
 			if !ok {
 				f.wg.Done()
 				return
+			}
+
+			if f.AsyncReconnectInterval > 0 {
+				// time.Now().UnixMilli() is possible but only introduced in Go 1.17.
+				// AsyncReconnectInterval is defined in ms in line with other options
+				// here, so we want to use ms throughout.
+				if now := time.Now().Unix() * int64(time.Millisecond); now > (f.latestReconnectTime + f.AsyncReconnectInterval) {
+					f.muconn.Lock()
+					f.connectWithRetry(ctx)
+					f.muconn.Unlock()
+				}
 			}
 
 			err := f.writeWithRetry(ctx, entry)
