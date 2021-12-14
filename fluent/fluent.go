@@ -113,9 +113,8 @@ type Fluent struct {
 	closed         bool
 	wg             sync.WaitGroup
 
-	// time (unix milliseconds) at which the most recent connection to fluentd
-	// address was established.
-	latestReconnectTime int64
+	// time at which the most recent connection to fluentd-address was established.
+	latestReconnectTime time.Time
 
 	muconn sync.RWMutex
 	conn   net.Conn
@@ -457,10 +456,7 @@ func (f *Fluent) connect(ctx context.Context) (err error) {
 	}
 
 	if err == nil {
-		// time.Now().UnixMilli() is possible but only introduced in Go 1.17
-		// AsyncReconnectInterval is defined in ms in line with other options
-		// here, so we want to use ms throughout.
-		f.latestReconnectTime = time.Now().Unix() * int64(time.Millisecond)
+		f.latestReconnectTime = time.Now()
 	}
 
 	return err
@@ -525,10 +521,7 @@ func (f *Fluent) run(ctx context.Context) {
 			}
 
 			if f.AsyncReconnectInterval > 0 {
-				// time.Now().UnixMilli() is possible but only introduced in Go 1.17.
-				// AsyncReconnectInterval is defined in ms in line with other options
-				// here, so we want to use ms throughout.
-				if now := time.Now().Unix() * int64(time.Millisecond); now > (f.latestReconnectTime + f.AsyncReconnectInterval) {
+				if time.Since(f.latestReconnectTime) > time.Duration(f.AsyncReconnectInterval)*time.Millisecond {
 					f.muconn.Lock()
 					f.connectWithRetry(ctx)
 					f.muconn.Unlock()
