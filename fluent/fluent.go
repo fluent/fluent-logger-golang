@@ -68,7 +68,7 @@ type Config struct {
 	// AsyncReconnectInterval defines the interval (ms) at which the connection
 	// to the fluentd-address is re-established. This option is useful if the address
 	// may resolve to one or more IP addresses, e.g. a Consul service address.
-	AsyncReconnectInterval int64 `json:"async_reconnect_interval"`
+	AsyncReconnectInterval int `json:"async_reconnect_interval"`
 
 	// Sub-second precision timestamps are only possible for those using fluentd
 	// v0.14+ and serializing their messages with msgpack.
