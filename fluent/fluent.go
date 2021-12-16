@@ -523,6 +523,7 @@ func (f *Fluent) run(ctx context.Context) {
 			if f.AsyncReconnectInterval > 0 {
 				if time.Since(f.latestReconnectTime) > time.Duration(f.AsyncReconnectInterval)*time.Millisecond {
 					f.muconn.Lock()
+					f.close()
 					f.connectWithRetry(ctx)
 					f.muconn.Unlock()
 				}
