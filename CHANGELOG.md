@@ -1,8 +1,30 @@
 # CHANGELOG
 
+## 1.9.0
+
+New features
+
+ * Add a new option `AsyncReconnectInterval` for periodic connection
+   refresh. #111
+
+Contributions to this release
+
+ * Conor Evans
+
 ## 1.8.0
-* Support logging over secure connections using TLS.
-* Change `Fluent.Post()` to return an error after connection close.
+
+New features
+
+ * Support logging over secure connections using TLS. #107
+
+Changes
+
+ * Change `Fluent.Post()` to return an error after connection close. #105
+
+Contributions to this release
+
+ * Love Sharma
+ * Fujimoto Seiji
 
 ## 1.7.0
 * Update connection management to stop logger during connection failures
