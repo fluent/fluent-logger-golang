@@ -120,6 +120,15 @@ type Fluent struct {
 	conn   net.Conn
 }
 
+// Metrics contains information about Fluent client.
+type Metrics struct {
+	// the configured buffer limit for each channel.
+	BufferLimit int
+
+	// number of logs waiting to be sent.
+	PendingLogCount int
+}
+
 type dialer interface {
 	DialContext(ctx context.Context, network, address string) (net.Conn, error)
 }
@@ -407,6 +416,21 @@ func (f *Fluent) Close() (err error) {
 		f.wg.Wait()
 	}
 	return
+}
+
+// get current metrics about Fluent client.
+func (f *Fluent) GetMetrics() interface{} {
+	if f.Config.Async {
+		return &Metrics{
+			BufferLimit:     f.Config.BufferLimit,
+			PendingLogCount: len(f.pending),
+		}
+	}
+
+	return &Metrics{
+		BufferLimit:     0,
+		PendingLogCount: 0,
+	}
 }
 
 // appendBuffer appends data to buffer with lock.
