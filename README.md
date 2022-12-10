@@ -27,7 +27,7 @@ package main
 
 import (
 	"fmt"
-	// "time"
+	"time"
 
 	"github.com/fluent/fluent-logger-golang/fluent"
 )
@@ -43,10 +43,14 @@ func main() {
 		"foo":  "bar",
 		"hoge": "hoge",
 	}
-	error := logger.Post(tag, data)
-	// error = logger.PostWithTime(tag, time.Now(), data)
-	if error != nil {
-		panic(error)
+	err = logger.Post(tag, data)
+	if err != nil {
+		panic(err)
+	}
+
+	err = logger.PostWithTime(tag, time.Now(), data)
+	if err != nil {
+		panic(err)
 	}
 }
 ```
