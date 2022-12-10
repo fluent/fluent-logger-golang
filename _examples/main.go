@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"../fluent"
+	"github.com/fluent/fluent-logger-golang/fluent"
 )
 
 func main() {
@@ -15,9 +15,10 @@ func main() {
 	}
 	defer logger.Close()
 	tag := "myapp.access"
-	var data = map[string]string{
+	data := map[string]string{
 		"foo":  "bar",
-		"hoge": "hoge"}
+		"hoge": "hoge",
+	}
 	for i := 0; i < 100; i++ {
 		e := logger.Post(tag, data)
 		if e != nil {
