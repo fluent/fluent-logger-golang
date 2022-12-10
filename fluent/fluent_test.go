@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bmizerany/assert"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -162,13 +161,21 @@ func (d *testDialer) waitForNextDialing(accept bool, delayReads bool) *Conn {
 	return conn
 }
 
+// asserEqual asserts that actual and expected are equivalent, and otherwise
+// marks the test as failed (t.Error). It uses reflect.DeepEqual internally.
+func assertEqual(t *testing.T, actual, expected interface{}) {
+	t.Helper()
+	if !reflect.DeepEqual(actual, expected) {
+		t.Errorf("got: '%+v', expected: '%+v'", actual, expected)
+	}
+}
+
 // assertReceived is used below by test cases to assert the content written to a *Conn
 // matches an expected string. This is generally used in conjunction with
 // Conn.waitForNextWrite().
 func assertReceived(t *testing.T, rcv []byte, expected string) {
-	if string(rcv) != expected {
-		t.Fatalf("got %s, expect %s", string(rcv), expected)
-	}
+	t.Helper()
+	assertEqual(t, string(rcv), expected)
 }
 
 // Conn extends net.Conn to add channels used to synchronise across goroutines, eg.
@@ -272,13 +279,13 @@ func (c *Conn) Close() error {
 
 func Test_New_itShouldUseDefaultConfigValuesIfNoOtherProvided(t *testing.T) {
 	f, _ := New(Config{})
-	assert.Equal(t, f.Config.FluentPort, defaultPort)
-	assert.Equal(t, f.Config.FluentHost, defaultHost)
-	assert.Equal(t, f.Config.Timeout, defaultTimeout)
-	assert.Equal(t, f.Config.WriteTimeout, defaultWriteTimeout)
-	assert.Equal(t, f.Config.BufferLimit, defaultBufferLimit)
-	assert.Equal(t, f.Config.FluentNetwork, defaultNetwork)
-	assert.Equal(t, f.Config.FluentSocketPath, defaultSocketPath)
+	assertEqual(t, f.Config.FluentPort, defaultPort)
+	assertEqual(t, f.Config.FluentHost, defaultHost)
+	assertEqual(t, f.Config.Timeout, defaultTimeout)
+	assertEqual(t, f.Config.WriteTimeout, defaultWriteTimeout)
+	assertEqual(t, f.Config.BufferLimit, defaultBufferLimit)
+	assertEqual(t, f.Config.FluentNetwork, defaultNetwork)
+	assertEqual(t, f.Config.FluentSocketPath, defaultSocketPath)
 }
 
 func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
@@ -303,8 +310,8 @@ func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
 		return
 	}
 	defer f.Close()
-	assert.Equal(t, f.Config.FluentNetwork, network)
-	assert.Equal(t, f.Config.FluentSocketPath, socketFile)
+	assertEqual(t, f.Config.FluentNetwork, network)
+	assertEqual(t, f.Config.FluentSocketPath, socketFile)
 
 	socketFile = "/tmp/fluent-logger-golang-xxx.sock"
 	network = "unixxxx"
@@ -324,13 +331,13 @@ func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
 
 func Test_New_itShouldUseConfigValuesFromArguments(t *testing.T) {
 	f, _ := New(Config{FluentPort: 6666, FluentHost: "foobarhost"})
-	assert.Equal(t, f.Config.FluentPort, 6666)
-	assert.Equal(t, f.Config.FluentHost, "foobarhost")
+	assertEqual(t, f.Config.FluentPort, 6666)
+	assertEqual(t, f.Config.FluentHost, "foobarhost")
 }
 
 func Test_New_itShouldUseConfigValuesFromMashalAsJSONArgument(t *testing.T) {
 	f, _ := New(Config{MarshalAsJSON: true})
-	assert.Equal(t, f.Config.MarshalAsJSON, true)
+	assertEqual(t, f.Config.MarshalAsJSON, true)
 }
 
 func Test_MarshalAsMsgpack(t *testing.T) {
@@ -432,9 +439,7 @@ func TestJsonConfig(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !reflect.DeepEqual(expect, got) {
-		t.Errorf("got %v, except %v", got, expect)
-	}
+	assertEqual(t, got, expect)
 }
 
 func TestPostWithTime(t *testing.T) {
@@ -650,9 +655,9 @@ func TestNoPanicOnAsyncClose(t *testing.T) {
 			}
 			err = f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
 			if tc.shouldError {
-				assert.Equal(t, fmt.Errorf("fluent#appendBuffer: Logger already closed"), err)
+				assertEqual(t, err, fmt.Errorf("fluent#appendBuffer: Logger already closed"))
 			} else {
-				assert.Equal(t, nil, err)
+				assertEqual(t, err, nil)
 			}
 		})
 	}
@@ -760,10 +765,14 @@ func TestSyncWriteAfterCloseFails(t *testing.T) {
 		err = f.PostWithTime("tag_name", time.Unix(1482493050, 0), map[string]string{"foo": "buzz"})
 
 		// The event submission must fail,
-		assert.NotEqual(t, err, nil)
+		if err == nil {
+			t.Error("expected an error")
+		}
 
 		// and also must keep Fluentd closed.
-		assert.NotEqual(t, f.closed, false)
+		if f.closed != true {
+			t.Error("expected Fluentd to be kept closed")
+		}
 	}()
 
 	conn := d.waitForNextDialing(true, false)
