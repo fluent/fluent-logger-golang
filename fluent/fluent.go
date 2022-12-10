@@ -1,8 +1,11 @@
 package fluent
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,10 +17,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"bytes"
-	"encoding/base64"
-	"encoding/binary"
 
 	"github.com/tinylib/msgp/msgp"
 )
@@ -200,27 +199,26 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 //
 // Examples:
 //
-//  // send map[string]
-//  mapStringData := map[string]string{
-//  	"foo":  "bar",
-//  }
-//  f.Post("tag_name", mapStringData)
+//	// send map[string]
+//	mapStringData := map[string]string{
+//		"foo":  "bar",
+//	}
+//	f.Post("tag_name", mapStringData)
 //
-//  // send message with specified time
-//  mapStringData := map[string]string{
-//  	"foo":  "bar",
-//  }
-//  tm := time.Now()
-//  f.PostWithTime("tag_name", tm, mapStringData)
+//	// send message with specified time
+//	mapStringData := map[string]string{
+//		"foo":  "bar",
+//	}
+//	tm := time.Now()
+//	f.PostWithTime("tag_name", tm, mapStringData)
 //
-//  // send struct
-//  structData := struct {
-//  		Name string `msg:"name"`
-//  } {
-//  		"john smith",
-//  }
-//  f.Post("tag_name", structData)
-//
+//	// send struct
+//	structData := struct {
+//			Name string `msg:"name"`
+//	} {
+//			"john smith",
+//	}
+//	f.Post("tag_name", structData)
 func (f *Fluent) Post(tag string, message interface{}) error {
 	timeNow := time.Now()
 	return f.PostWithTime(tag, timeNow, message)

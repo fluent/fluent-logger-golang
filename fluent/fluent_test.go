@@ -45,18 +45,18 @@ func newTestDialer() *testDialer {
 // For instance, to test an async logger that have to dial 4 times before succeeding,
 // the test should look like this:
 //
-//   d := newTestDialer() // Create a new stubbed dialer
-//   cfg := Config{
-//       Async: true,
-//  	   // ...
-//   }
-//   f := newWithDialer(cfg, d) // Create a fluent logger using the stubbed dialer
-//   f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
+//	 d := newTestDialer() // Create a new stubbed dialer
+//	 cfg := Config{
+//	     Async: true,
+//		   // ...
+//	 }
+//	 f := newWithDialer(cfg, d) // Create a fluent logger using the stubbed dialer
+//	 f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
 //
-//   d.waitForNextDialing(false, false) // 1st dialing attempt fails
-//   d.waitForNextDialing(false, false) // 2nd attempt fails too
-//   d.waitForNextDialing(false, false) // 3rd attempt fails too
-//   d.waitForNextDialing(true, false) // Finally the 4th attempt succeeds
+//	 d.waitForNextDialing(false, false) // 1st dialing attempt fails
+//	 d.waitForNextDialing(false, false) // 2nd attempt fails too
+//	 d.waitForNextDialing(false, false) // 3rd attempt fails too
+//	 d.waitForNextDialing(true, false) // Finally the 4th attempt succeeds
 //
 // Note that in the above example, the logger operates in async mode. As such,
 // a call to Post, PostWithTime or EncodeAndPostData is needed *before* calling
@@ -67,20 +67,20 @@ func newTestDialer() *testDialer {
 // case, you have to put the calls to newWithDialer() and to EncodeAndPostData()
 // into their own goroutine. An example:
 //
-//   d := newTestDialer() // Create a new stubbed dialer
-//   cfg := Config{
-//       Async: false,
-//  	   // ...
-//   }
-//   go func() {
-//       f := newWithDialer(cfg, d) // Create a fluent logger using the stubbed dialer
-//       f.Close()
-//   }()
+//	 d := newTestDialer() // Create a new stubbed dialer
+//	 cfg := Config{
+//	     Async: false,
+//		   // ...
+//	 }
+//	 go func() {
+//	     f := newWithDialer(cfg, d) // Create a fluent logger using the stubbed dialer
+//	     f.Close()
+//	 }()
 //
-//   d.waitForNextDialing(false, false) // 1st dialing attempt fails
-//   d.waitForNextDialing(false, false) // 2nd attempt fails too
-//   d.waitForNextDialing(false, false) // 3rd attempt fails too
-//   d.waitForNextDialing(true, false) // Finally the 4th attempt succeeds
+//	 d.waitForNextDialing(false, false) // 1st dialing attempt fails
+//	 d.waitForNextDialing(false, false) // 2nd attempt fails too
+//	 d.waitForNextDialing(false, false) // 3rd attempt fails too
+//	 d.waitForNextDialing(true, false) // Finally the 4th attempt succeeds
 //
 // Moreover, waitForNextDialing() returns a *Conn which extends net.Conn to provide testing
 // facilities. For instance, you can call waitForNextWrite() on these connections, to
@@ -91,24 +91,24 @@ func newTestDialer() *testDialer {
 //
 // Here's a full example:
 //
-//   d := newTestDialer()
-//   cfg := Config{Async: true}
+//	d := newTestDialer()
+//	cfg := Config{Async: true}
 //
-//   f := newWithDialer(cfg, d)
-//   f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
+//	f := newWithDialer(cfg, d)
+//	f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
 //
-//   conn := d.waitForNextDialing(true, false) // Accept the dialing
-//   conn.waitForNextWrite(false, "") // Discard the 1st attempt to write the message
+//	conn := d.waitForNextDialing(true, false) // Accept the dialing
+//	conn.waitForNextWrite(false, "") // Discard the 1st attempt to write the message
 //
-//   conn := d.waitForNextDialing(true, false)
-//   assertReceived(t, // t is *testing.T
-//       conn.waitForNextWrite(true, ""),
-//       "[\"tag_name\",1482493046,{\"foo\":\"bar\"},{}]")
+//	conn := d.waitForNextDialing(true, false)
+//	assertReceived(t, // t is *testing.T
+//	    conn.waitForNextWrite(true, ""),
+//	    "[\"tag_name\",1482493046,{\"foo\":\"bar\"},{}]")
 //
-//   f.EncodeAndPostData("something_else", time.Unix(1482493050, 0), map[string]string{"bar": "baz"})
-//   assertReceived(t, // t is *testing.T
-//       conn.waitForNextWrite(true, ""),
-//       "[\"something_else\",1482493050,{\"bar\":\"baz\"},{}]")
+//	f.EncodeAndPostData("something_else", time.Unix(1482493050, 0), map[string]string{"bar": "baz"})
+//	assertReceived(t, // t is *testing.T
+//	    conn.waitForNextWrite(true, ""),
+//	    "[\"something_else\",1482493050,{\"bar\":\"baz\"},{}]")
 //
 // In this example, the 1st connection dialing succeeds but the 1st attempt to write the
 // message is discarded. As the logger discards the connection whenever a message
@@ -296,7 +296,8 @@ func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
 
 	f, err := New(Config{
 		FluentNetwork:    network,
-		FluentSocketPath: socketFile})
+		FluentSocketPath: socketFile,
+	})
 	if err != nil {
 		t.Error(err)
 		return
@@ -309,7 +310,8 @@ func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
 	network = "unixxxx"
 	fUnknown, err := New(Config{
 		FluentNetwork:    network,
-		FluentSocketPath: socketFile})
+		FluentSocketPath: socketFile,
+	})
 	if _, ok := err.(*ErrUnknownNetwork); !ok {
 		t.Errorf("err type: %T", err)
 	}
@@ -335,12 +337,12 @@ func Test_MarshalAsMsgpack(t *testing.T) {
 	f := &Fluent{Config: Config{}}
 
 	tag := "tag"
-	var data = map[string]string{
+	data := map[string]string{
 		"foo":  "bar",
-		"hoge": "hoge"}
+		"hoge": "hoge",
+	}
 	tm := time.Unix(1267867237, 0)
 	result, err := f.EncodeData(tag, tm, data)
-
 	if err != nil {
 		t.Error(err)
 	}
@@ -368,7 +370,6 @@ func Test_SubSecondPrecision(t *testing.T) {
 	encodedData, err := fluent.EncodeData("tag", timestamp, map[string]string{
 		"foo": "bar",
 	})
-
 	// Assert no encoding errors and that the timestamp has been encoded into
 	// the message as expected.
 	if err != nil {
@@ -387,12 +388,12 @@ func Test_SubSecondPrecision(t *testing.T) {
 func Test_MarshalAsJSON(t *testing.T) {
 	f := &Fluent{Config: Config{MarshalAsJSON: true}}
 
-	var data = map[string]string{
+	data := map[string]string{
 		"foo":  "bar",
-		"hoge": "hoge"}
+		"hoge": "hoge",
+	}
 	tm := time.Unix(1267867237, 0)
 	result, err := f.EncodeData("tag", tm, data)
-
 	if err != nil {
 		t.Error(err)
 	}
@@ -472,7 +473,10 @@ func TestPostWithTime(t *testing.T) {
 				_ = f.PostWithTime("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
 				_ = f.PostWithTime("tag_name", time.Unix(1482493050, 0), map[string]string{"fluentd": "is awesome"})
 				_ = f.PostWithTime("tag_name", time.Unix(1634263200, 0),
-					struct {Welcome string `msg:"welcome"`; cannot string}{"to use", "see me"})
+					struct {
+						Welcome string `msg:"welcome"`
+						cannot  string
+					}{"to use", "see me"})
 			}()
 
 			conn := d.waitForNextDialing(true, false)
@@ -755,10 +759,10 @@ func TestSyncWriteAfterCloseFails(t *testing.T) {
 		err = f.PostWithTime("tag_name", time.Unix(1482493050, 0), map[string]string{"foo": "buzz"})
 
 		// The event submission must fail,
-		assert.NotEqual(t, err, nil);
+		assert.NotEqual(t, err, nil)
 
 		// and also must keep Fluentd closed.
-		assert.NotEqual(t, f.closed, false);
+		assert.NotEqual(t, f.closed, false)
 	}()
 
 	conn := d.waitForNextDialing(true, false)
