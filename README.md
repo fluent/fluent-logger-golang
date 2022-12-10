@@ -8,15 +8,15 @@ fluent-logger-golang
 
 ## How to install
 
-```
-go get github.com/fluent/fluent-logger-golang/fluent
+```bash
+go get github.com/fluent/fluent-logger-golang/fluent@latest
 ```
 
 ## Usage
 
 Install the package with `go get` and use `import` to include it in your project.
 
-```
+```go
 import "github.com/fluent/fluent-logger-golang/fluent"
 ```
 
@@ -26,27 +26,28 @@ import "github.com/fluent/fluent-logger-golang/fluent"
 package main
 
 import (
-  "github.com/fluent/fluent-logger-golang/fluent"
-  "fmt"
-  //"time"
+	"fmt"
+	// "time"
+
+	"github.com/fluent/fluent-logger-golang/fluent"
 )
 
 func main() {
-  logger, err := fluent.New(fluent.Config{})
-  if err != nil {
-    fmt.Println(err)
-  }
-  defer logger.Close()
-  tag := "myapp.access"
-  var data = map[string]string{
-    "foo":  "bar",
-    "hoge": "hoge",
-  }
-  error := logger.Post(tag, data)
-  // error := logger.PostWithTime(tag, time.Now(), data)
-  if error != nil {
-    panic(error)
-  }
+	logger, err := fluent.New(fluent.Config{})
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer logger.Close()
+	tag := "myapp.access"
+	data := map[string]string{
+		"foo":  "bar",
+		"hoge": "hoge",
+	}
+	error := logger.Post(tag, data)
+	// error = logger.PostWithTime(tag, time.Now(), data)
+	if error != nil {
+		panic(error)
+	}
 }
 ```
 
@@ -181,7 +182,7 @@ were involved. Starting v1.8.0, the logger no longer accepts `Fluent.Post()`
 after `Fluent.Close()`, and instead returns a "Logger already closed" error.
 
 ## Tests
-```
 
+```bash
 go test
 ```

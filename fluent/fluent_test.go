@@ -311,7 +311,8 @@ func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
 
 	f, err := New(Config{
 		FluentNetwork:    network,
-		FluentSocketPath: socketFile})
+		FluentSocketPath: socketFile,
+	})
 	if err != nil {
 		t.Error(err)
 		return
@@ -324,7 +325,8 @@ func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
 	network = "unixxxx"
 	fUnknown, err := New(Config{
 		FluentNetwork:    network,
-		FluentSocketPath: socketFile})
+		FluentSocketPath: socketFile,
+	})
 	if _, ok := err.(*ErrUnknownNetwork); !ok {
 		t.Errorf("err type: %T", err)
 	}
@@ -350,12 +352,12 @@ func Test_MarshalAsMsgpack(t *testing.T) {
 	f := &Fluent{Config: Config{}}
 
 	tag := "tag"
-	var data = map[string]string{
+	data := map[string]string{
 		"foo":  "bar",
-		"hoge": "hoge"}
+		"hoge": "hoge",
+	}
 	tm := time.Unix(1267867237, 0)
 	result, err := f.EncodeData(tag, tm, data)
-
 	if err != nil {
 		t.Error(err)
 	}
@@ -383,7 +385,6 @@ func Test_SubSecondPrecision(t *testing.T) {
 	encodedData, err := fluent.EncodeData("tag", timestamp, map[string]string{
 		"foo": "bar",
 	})
-
 	// Assert no encoding errors and that the timestamp has been encoded into
 	// the message as expected.
 	if err != nil {
@@ -402,12 +403,12 @@ func Test_SubSecondPrecision(t *testing.T) {
 func Test_MarshalAsJSON(t *testing.T) {
 	f := &Fluent{Config: Config{MarshalAsJSON: true}}
 
-	var data = map[string]string{
+	data := map[string]string{
 		"foo":  "bar",
-		"hoge": "hoge"}
+		"hoge": "hoge",
+	}
 	tm := time.Unix(1267867237, 0)
 	result, err := f.EncodeData("tag", tm, data)
-
 	if err != nil {
 		t.Error(err)
 	}
