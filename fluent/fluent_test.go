@@ -451,9 +451,9 @@ func TestPostWithTime(t *testing.T) {
 		},
 	}
 
-	for tcname := range testcases {
+	for tcname, tc := range testcases {
+		tc := tc
 		t.Run(tcname, func(t *testing.T) {
-			tc := testcases[tcname]
 			t.Parallel()
 
 			d := newTestDialer()
@@ -506,9 +506,9 @@ func TestReconnectAndResendAfterTransientFailure(t *testing.T) {
 		},
 	}
 
-	for tcname := range testcases {
+	for tcname, tc := range testcases {
+		tc := tc
 		t.Run(tcname, func(t *testing.T) {
-			tc := testcases[tcname]
 			t.Parallel()
 
 			d := newTestDialer()
@@ -588,9 +588,9 @@ func TestCloseOnFailingAsyncConnect(t *testing.T) {
 		},
 	}
 
-	for tcname := range testcases {
+	for tcname, tc := range testcases {
+		tc := tc
 		t.Run(tcname, func(t *testing.T) {
-			tc := testcases[tcname]
 			t.Parallel()
 
 			d := newTestDialer()
@@ -636,22 +636,23 @@ func TestNoPanicOnAsyncClose(t *testing.T) {
 			shouldError: false,
 		},
 	}
-	for _, testcase := range testcases {
-		t.Run(testcase.name, func(t *testing.T) {
+	for _, tc := range testcases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			d := newTestDialer()
-			f, err := newWithDialer(testcase.config, d)
+			f, err := newWithDialer(tc.config, d)
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			if testcase.shouldError {
+			if tc.shouldError {
 				f.Close()
 			}
-			e := f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
-			if testcase.shouldError {
-				assert.Equal(t, fmt.Errorf("fluent#appendBuffer: Logger already closed"), e)
+			err = f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
+			if tc.shouldError {
+				assert.Equal(t, fmt.Errorf("fluent#appendBuffer: Logger already closed"), err)
 			} else {
-				assert.Equal(t, nil, e)
+				assert.Equal(t, nil, err)
 			}
 		})
 	}
@@ -684,9 +685,9 @@ func TestCloseOnFailingAsyncReconnect(t *testing.T) {
 		},
 	}
 
-	for tcname := range testcases {
+	for tcname, tc := range testcases {
+		tc := tc
 		t.Run(tcname, func(t *testing.T) {
-			tc := testcases[tcname]
 			t.Parallel()
 
 			d := newTestDialer()
