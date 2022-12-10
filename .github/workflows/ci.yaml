@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu, macos, windows]
-        golang: ['1.13', '1.16', '1.17']
+        golang: ['1.19', '1.20', '1.21']
         # currently, we cannot run non-x86_64 machines on GitHub Actions cloud env.
     runs-on: ${{ matrix.os }}-latest
     name: CI golang ${{ matrix.golang }} on ${{ matrix.os }}
