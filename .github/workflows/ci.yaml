@@ -27,7 +27,6 @@ jobs:
         run: go env -w GO111MODULE=auto
       - name: Install requirements
         run: |
-          go get github.com/bmizerany/assert
           go get github.com/philhofer/fwd
           go get github.com/tinylib/msgp
       - name: Test
