@@ -278,7 +278,7 @@ func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message interface{}
 	var msg *msgToSend
 	var err error
 	if msg, err = f.EncodeData(tag, tm, message); err != nil {
-		return fmt.Errorf("fluent#EncodeAndPostData: can't convert '%#v' to msgpack:%v", message, err)
+		return fmt.Errorf("fluent#EncodeAndPostData: can't convert '%#v' to msgpack:%w", message, err)
 	}
 	return f.postRawData(msg)
 }
@@ -588,7 +588,7 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
 	}(); err != nil {
 		// Here, we don't want to retry the write since connectWithRetry already
 		// retries Config.MaxRetry times to connect.
-		return false, fmt.Errorf("fluent#write: %v", err)
+		return false, fmt.Errorf("fluent#write: %w", err)
 	}
 
 	if err := func() (err error) {
@@ -610,7 +610,7 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
 		return err
 	}(); err != nil {
 		closer()
-		return true, fmt.Errorf("fluent#write: %v", err)
+		return true, fmt.Errorf("fluent#write: %w", err)
 	}
 
 	// Acknowledgment check
