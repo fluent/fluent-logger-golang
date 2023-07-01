@@ -34,9 +34,6 @@ const (
 	defaultMaxRetryWait           = 60000
 	defaultMaxRetry               = 13
 	defaultReconnectWaitIncreRate = 1.5
-	// Default sub-second precision value to false since it is only compatible
-	// with fluentd versions v0.14 and above.
-	defaultSubSecondPrecision = false
 
 	// Default value whether to skip checking insecure certs on TLS connections.
 	defaultTlsInsecureSkipVerify = false
