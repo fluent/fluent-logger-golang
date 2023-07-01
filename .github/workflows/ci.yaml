@@ -23,11 +23,5 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.golang }}
-      - name: Change GO11MODULES
-        run: go env -w GO111MODULE=auto
-      - name: Install requirements
-        run: |
-          go get github.com/philhofer/fwd
-          go get github.com/tinylib/msgp
       - name: Test
         run: go test -v ./fluent
