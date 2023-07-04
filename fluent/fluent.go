@@ -49,6 +49,7 @@ var randomGenerator = rand.Uint64
 type Config struct {
 	FluentPort          int           `json:"fluent_port"`
 	FluentHost          string        `json:"fluent_host"`
+	FluentHost          []string      `json:"fluent_hosts"`
 	FluentNetwork       string        `json:"fluent_network"`
 	FluentSocketPath    string        `json:"fluent_socket_path"`
 	Timeout             time.Duration `json:"timeout"`
@@ -116,8 +117,10 @@ type Fluent struct {
 	// time at which the most recent connection to fluentd-address was established.
 	latestReconnectTime time.Time
 
-	muconn sync.RWMutex
-	conn   net.Conn
+	muconn     sync.RWMutex
+	conn       net.Conn
+	conns      []net.conn
+	currConnId int
 }
 
 type dialer interface {
@@ -181,15 +184,17 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 			pending:        make(chan *msgToSend, config.BufferLimit),
 			pendingMutex:   sync.RWMutex{},
 			muconn:         sync.RWMutex{},
+			currConnId:     0,
 		}
 
 		f.wg.Add(1)
 		go f.run(ctx)
 	} else {
 		f = &Fluent{
-			Config: config,
-			dialer: d,
-			muconn: sync.RWMutex{},
+			Config:     config,
+			dialer:     d,
+			muconn:     sync.RWMutex{},
+			currConnId: 0,
 		}
 		err = f.connect(context.Background())
 	}
@@ -437,9 +442,24 @@ func (f *Fluent) close() {
 func (f *Fluent) connect(ctx context.Context) (err error) {
 	switch f.Config.FluentNetwork {
 	case "tcp":
-		f.conn, err = f.dialer.DialContext(ctx,
-			f.Config.FluentNetwork,
-			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
+		if len(f.Config.FluentHosts) > 0 {
+			for i, host := range f.Config.FluentHosts {
+				conn, err := f.dialer.DialContext(ctx,
+					f.Config.FluentNetwork,
+					host+":"+strconv.Itoa(f.Config.FluentPort))
+				if err != nil {
+					return err
+				}
+
+				f.conns = append(f.conns, &conn)
+			}
+		} else {
+			// If FluentHosts is not set, use FluentHost and f.conn
+			f.conn, err = f.dialer.DialContext(ctx,
+				f.Config.FluentNetwork,
+				f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
+			f.conns = append(f.conns, &f.conn)
+		}
 	case "tls":
 		tlsConfig := &tls.Config{InsecureSkipVerify: f.Config.TlsInsecureSkipVerify}
 		f.conn, err = tls.DialWithDialer(
@@ -569,6 +589,7 @@ func (f *Fluent) writeWithRetry(ctx context.Context, msg *msgToSend) error {
 // muconn.RUnlock in deferred calls to ensure the mutex is unlocked even in
 // the case of panic recovering.
 func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
+	f.selectConnection()
 	closer := func() {
 		f.muconn.Lock()
 		defer f.muconn.Unlock()
@@ -634,4 +655,14 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// selectConnection selects the next available connection using round-robin.
+func (f *Fluent) selectConnection() net.conn {
+	f.muconn.RLock()
+	defer f.muconn.RUnlock()
+
+	f.currConnId = (f.currConnId + 1) % len(f.conns)
+	f.conn = f.conns[currConnId]
+	return f.conn
 }
