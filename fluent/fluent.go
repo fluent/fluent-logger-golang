@@ -49,7 +49,7 @@ var randomGenerator = rand.Uint64
 type Config struct {
 	FluentPort          int           `json:"fluent_port"`
 	FluentHost          string        `json:"fluent_host"`
-	FluentHost          []string      `json:"fluent_hosts"`
+	FluentHosts         []string      `json:"fluent_hosts"`
 	FluentNetwork       string        `json:"fluent_network"`
 	FluentSocketPath    string        `json:"fluent_socket_path"`
 	Timeout             time.Duration `json:"timeout"`
@@ -119,7 +119,7 @@ type Fluent struct {
 
 	muconn     sync.RWMutex
 	conn       net.Conn
-	conns      []net.conn
+	conns      []net.Conn
 	currConnId int
 }
 
@@ -142,6 +142,7 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 		config.FluentNetwork = defaultNetwork
 	}
 	if config.FluentHost == "" {
+		fmt.Fprintf(os.Stderr, "fluent#New: FluentHost is now deprecated, please use FluentHosts instead")
 		config.FluentHost = defaultHost
 	}
 	if config.FluentPort == 0 {
@@ -435,6 +436,13 @@ func (f *Fluent) close() {
 		f.conn.Close()
 		f.conn = nil
 	}
+
+	if len(f.conns) > 0 {
+		for i, conn := range f.conns {
+			conn.Close()
+			f.conns[i] = nil
+		}
+	}
 }
 
 // connect establishes a new connection using the specified transport. Caller should
@@ -443,7 +451,7 @@ func (f *Fluent) connect(ctx context.Context) (err error) {
 	switch f.Config.FluentNetwork {
 	case "tcp":
 		if len(f.Config.FluentHosts) > 0 {
-			for i, host := range f.Config.FluentHosts {
+			for _, host := range f.Config.FluentHosts {
 				conn, err := f.dialer.DialContext(ctx,
 					f.Config.FluentNetwork,
 					host+":"+strconv.Itoa(f.Config.FluentPort))
@@ -451,14 +459,14 @@ func (f *Fluent) connect(ctx context.Context) (err error) {
 					return err
 				}
 
-				f.conns = append(f.conns, &conn)
+				f.conns = append(f.conns, conn)
 			}
 		} else {
 			// If FluentHosts is not set, use FluentHost and f.conn
 			f.conn, err = f.dialer.DialContext(ctx,
 				f.Config.FluentNetwork,
 				f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
-			f.conns = append(f.conns, &f.conn)
+			f.conns = append(f.conns, f.conn)
 		}
 	case "tls":
 		tlsConfig := &tls.Config{InsecureSkipVerify: f.Config.TlsInsecureSkipVerify}
@@ -658,11 +666,15 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
 }
 
 // selectConnection selects the next available connection using round-robin.
-func (f *Fluent) selectConnection() net.conn {
+func (f *Fluent) selectConnection() net.Conn {
 	f.muconn.RLock()
 	defer f.muconn.RUnlock()
 
-	f.currConnId = (f.currConnId + 1) % len(f.conns)
-	f.conn = f.conns[currConnId]
+	var currConnId = (f.currConnId + 1) % len(f.conns)
+	if f.conns[currConnId] != nil {
+		f.currConnId = currConnId
+		f.conn = f.conns[f.currConnId]
+	}
+
 	return f.conn
 }
