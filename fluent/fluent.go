@@ -104,8 +104,6 @@ type Fluent struct {
 	Config
 
 	dialer dialer
-	// stopRunning is used in async mode to signal to run() it should abort.
-	stopRunning chan struct{}
 	// cancelDialings is used by Close() to stop any in-progress dialing.
 	cancelDialings context.CancelFunc
 	pending        chan *msgToSend
@@ -176,7 +174,6 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 		f = &Fluent{
 			Config:         config,
 			dialer:         d,
-			stopRunning:    make(chan struct{}),
 			cancelDialings: cancel,
 			pending:        make(chan *msgToSend, config.BufferLimit),
 			pendingMutex:   sync.RWMutex{},
@@ -200,27 +197,26 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 //
 // Examples:
 //
-//  // send map[string]
-//  mapStringData := map[string]string{
-//  	"foo":  "bar",
-//  }
-//  f.Post("tag_name", mapStringData)
+//	// send map[string]
+//	mapStringData := map[string]string{
+//		"foo":  "bar",
+//	}
+//	f.Post("tag_name", mapStringData)
 //
-//  // send message with specified time
-//  mapStringData := map[string]string{
-//  	"foo":  "bar",
-//  }
-//  tm := time.Now()
-//  f.PostWithTime("tag_name", tm, mapStringData)
+//	// send message with specified time
+//	mapStringData := map[string]string{
+//		"foo":  "bar",
+//	}
+//	tm := time.Now()
+//	f.PostWithTime("tag_name", tm, mapStringData)
 //
-//  // send struct
-//  structData := struct {
-//  		Name string `msg:"name"`
-//  } {
-//  		"john smith",
-//  }
-//  f.Post("tag_name", structData)
-//
+//	// send struct
+//	structData := struct {
+//			Name string `msg:"name"`
+//	} {
+//			"john smith",
+//	}
+//	f.Post("tag_name", structData)
 func (f *Fluent) Post(tag string, message interface{}) error {
 	timeNow := time.Now()
 	return f.PostWithTime(tag, timeNow, message)
@@ -380,7 +376,6 @@ func (f *Fluent) Close() (err error) {
 		f.pendingMutex.Unlock()
 
 		if f.Config.ForceStopAsyncSend {
-			close(f.stopRunning)
 			f.cancelDialings()
 		}
 
@@ -513,7 +508,7 @@ func (f *Fluent) run(ctx context.Context) {
 	for {
 		select {
 		case entry, ok := <-f.pending:
-			// f.stopRunning is closed before f.pending only when ForceStopAsyncSend
+			// The context is cancelled before f.pending only when ForceStopAsyncSend
 			// is enabled. Otherwise, f.pending is closed when Close() is called.
 			if !ok {
 				f.wg.Done()
@@ -540,9 +535,9 @@ func (f *Fluent) run(ctx context.Context) {
 				}
 				f.AsyncResultCallback(data, err)
 			}
-		case <-f.stopRunning:
+		case <-ctx.Done():
+			// Context was canceled, which means ForceStopAsyncSend was enabled
 			fmt.Fprintf(os.Stderr, "[%s] Discarding queued events...\n", time.Now().Format(time.RFC3339))
-
 			f.wg.Done()
 			return
 		}
