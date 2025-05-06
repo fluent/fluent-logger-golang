@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"bytes"
@@ -107,15 +108,19 @@ type Fluent struct {
 	// cancelDialings is used by Close() to stop any in-progress dialing.
 	cancelDialings context.CancelFunc
 	pending        chan *msgToSend
-	pendingMutex   sync.RWMutex
-	closed         bool
-	wg             sync.WaitGroup
+	// closed indicates if the connection is open or closed.
+	// 0 = open (false), 1 = closed (true). Since the code is built in CI with
+	// golang < 1.19, we're using atomic int32 here. Otherwise, atomic.Bool
+	// could have been used.
+	closed int32
+	wg     sync.WaitGroup
 
 	// time at which the most recent connection to fluentd-address was established.
 	latestReconnectTime time.Time
 
-	muconn sync.RWMutex
-	conn   net.Conn
+	muconn       sync.RWMutex
+	pendingMutex sync.RWMutex
+	conn         net.Conn
 }
 
 type dialer interface {
@@ -176,17 +181,18 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 			dialer:         d,
 			cancelDialings: cancel,
 			pending:        make(chan *msgToSend, config.BufferLimit),
-			pendingMutex:   sync.RWMutex{},
 			muconn:         sync.RWMutex{},
+			pendingMutex:   sync.RWMutex{},
 		}
 
 		f.wg.Add(1)
 		go f.run(ctx)
 	} else {
 		f = &Fluent{
-			Config: config,
-			dialer: d,
-			muconn: sync.RWMutex{},
+			Config:       config,
+			dialer:       d,
+			muconn:       sync.RWMutex{},
+			pendingMutex: sync.RWMutex{},
 		}
 		err = f.connect(context.Background())
 	}
@@ -290,7 +296,7 @@ func (f *Fluent) postRawData(msg *msgToSend) error {
 	}
 
 	// Synchronous write
-	if f.closed {
+	if atomic.LoadInt32(&f.closed) == 1 {
 		return fmt.Errorf("fluent#postRawData: Logger already closed")
 	}
 	return f.writeWithRetry(context.Background(), msg)
@@ -367,19 +373,22 @@ func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (msg 
 // running in async mode, the run() goroutine exits before Close() returns.
 func (f *Fluent) Close() (err error) {
 	if f.Config.Async {
+		// Use a mutex to ensure thread safety when closing the channel
 		f.pendingMutex.Lock()
-		if f.closed {
+
+		if atomic.LoadInt32(&f.closed) == 1 {
 			f.pendingMutex.Unlock()
 			return nil
 		}
-		f.closed = true
-		f.pendingMutex.Unlock()
+		atomic.StoreInt32(&f.closed, 1)
 
 		if f.Config.ForceStopAsyncSend {
 			f.cancelDialings()
 		}
 
 		close(f.pending)
+		f.pendingMutex.Unlock()
+
 		// If ForceStopAsyncSend is false, all logs in the channel have to be sent
 		// before closing the connection. At this point closed is true so no more
 		// logs are written to the channel and f.pending has been closed, so run()
@@ -391,7 +400,7 @@ func (f *Fluent) Close() (err error) {
 
 	f.muconn.Lock()
 	f.close()
-	f.closed = true
+	atomic.StoreInt32(&f.closed, 1)
 	f.muconn.Unlock()
 
 	// If ForceStopAsyncSend is true, we shall close the connection before waiting for
@@ -406,11 +415,19 @@ func (f *Fluent) Close() (err error) {
 
 // appendBuffer appends data to buffer with lock.
 func (f *Fluent) appendBuffer(msg *msgToSend) error {
-	f.pendingMutex.RLock()
-	defer f.pendingMutex.RUnlock()
-	if f.closed {
+	if atomic.LoadInt32(&f.closed) == 1 {
 		return fmt.Errorf("fluent#appendBuffer: Logger already closed")
 	}
+
+	// Use a mutex to ensure thread safety when writing to the channel
+	f.pendingMutex.Lock()
+	defer f.pendingMutex.Unlock()
+
+	// Check again after acquiring the lock
+	if atomic.LoadInt32(&f.closed) == 1 {
+		return fmt.Errorf("fluent#appendBuffer: Logger already closed")
+	}
+
 	select {
 	case f.pending <- msg:
 	default:
@@ -610,6 +627,8 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
 
 	// Acknowledgment check
 	if msg.ack != "" {
+		f.muconn.Lock()
+
 		resp := &AckResp{}
 		var err error
 		if f.Config.MarshalAsJSON {
@@ -619,6 +638,7 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
 			r := msgp.NewReader(f.conn)
 			err = resp.DecodeMsg(r)
 		}
+		f.muconn.Unlock()
 
 		if err != nil || resp.Ack != msg.ack {
 			fmt.Fprintf(os.Stderr, "fluent#write: message ack (%s) doesn't match expected one (%s). Closing connection...", resp.Ack, msg.ack)
