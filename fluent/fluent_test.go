@@ -10,6 +10,9 @@ import (
 	"net"
 	"reflect"
 	"runtime"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,18 +48,18 @@ func newTestDialer() *testDialer {
 // For instance, to test an async logger that have to dial 4 times before succeeding,
 // the test should look like this:
 //
-//   d := newTestDialer() // Create a new stubbed dialer
-//   cfg := Config{
-//       Async: true,
-//  	   // ...
-//   }
-//   f := newWithDialer(cfg, d) // Create a fluent logger using the stubbed dialer
-//   f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
+//	 d := newTestDialer() // Create a new stubbed dialer
+//	 cfg := Config{
+//	     Async: true,
+//		   // ...
+//	 }
+//	 f := newWithDialer(cfg, d) // Create a fluent logger using the stubbed dialer
+//	 f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
 //
-//   d.waitForNextDialing(false, false) // 1st dialing attempt fails
-//   d.waitForNextDialing(false, false) // 2nd attempt fails too
-//   d.waitForNextDialing(false, false) // 3rd attempt fails too
-//   d.waitForNextDialing(true, false) // Finally the 4th attempt succeeds
+//	 d.waitForNextDialing(false, false) // 1st dialing attempt fails
+//	 d.waitForNextDialing(false, false) // 2nd attempt fails too
+//	 d.waitForNextDialing(false, false) // 3rd attempt fails too
+//	 d.waitForNextDialing(true, false) // Finally the 4th attempt succeeds
 //
 // Note that in the above example, the logger operates in async mode. As such,
 // a call to Post, PostWithTime or EncodeAndPostData is needed *before* calling
@@ -67,20 +70,20 @@ func newTestDialer() *testDialer {
 // case, you have to put the calls to newWithDialer() and to EncodeAndPostData()
 // into their own goroutine. An example:
 //
-//   d := newTestDialer() // Create a new stubbed dialer
-//   cfg := Config{
-//       Async: false,
-//  	   // ...
-//   }
-//   go func() {
-//       f := newWithDialer(cfg, d) // Create a fluent logger using the stubbed dialer
-//       f.Close()
-//   }()
+//	 d := newTestDialer() // Create a new stubbed dialer
+//	 cfg := Config{
+//	     Async: false,
+//		   // ...
+//	 }
+//	 go func() {
+//	     f := newWithDialer(cfg, d) // Create a fluent logger using the stubbed dialer
+//	     f.Close()
+//	 }()
 //
-//   d.waitForNextDialing(false, false) // 1st dialing attempt fails
-//   d.waitForNextDialing(false, false) // 2nd attempt fails too
-//   d.waitForNextDialing(false, false) // 3rd attempt fails too
-//   d.waitForNextDialing(true, false) // Finally the 4th attempt succeeds
+//	 d.waitForNextDialing(false, false) // 1st dialing attempt fails
+//	 d.waitForNextDialing(false, false) // 2nd attempt fails too
+//	 d.waitForNextDialing(false, false) // 3rd attempt fails too
+//	 d.waitForNextDialing(true, false) // Finally the 4th attempt succeeds
 //
 // Moreover, waitForNextDialing() returns a *Conn which extends net.Conn to provide testing
 // facilities. For instance, you can call waitForNextWrite() on these connections, to
@@ -91,24 +94,24 @@ func newTestDialer() *testDialer {
 //
 // Here's a full example:
 //
-//   d := newTestDialer()
-//   cfg := Config{Async: true}
+//	d := newTestDialer()
+//	cfg := Config{Async: true}
 //
-//   f := newWithDialer(cfg, d)
-//   f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
+//	f := newWithDialer(cfg, d)
+//	f.EncodeAndPostData("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
 //
-//   conn := d.waitForNextDialing(true, false) // Accept the dialing
-//   conn.waitForNextWrite(false, "") // Discard the 1st attempt to write the message
+//	conn := d.waitForNextDialing(true, false) // Accept the dialing
+//	conn.waitForNextWrite(false, "") // Discard the 1st attempt to write the message
 //
-//   conn := d.waitForNextDialing(true, false)
-//   assertReceived(t, // t is *testing.T
-//       conn.waitForNextWrite(true, ""),
-//       "[\"tag_name\",1482493046,{\"foo\":\"bar\"},{}]")
+//	conn := d.waitForNextDialing(true, false)
+//	assertReceived(t, // t is *testing.T
+//	    conn.waitForNextWrite(true, ""),
+//	    "[\"tag_name\",1482493046,{\"foo\":\"bar\"},{}]")
 //
-//   f.EncodeAndPostData("something_else", time.Unix(1482493050, 0), map[string]string{"bar": "baz"})
-//   assertReceived(t, // t is *testing.T
-//       conn.waitForNextWrite(true, ""),
-//       "[\"something_else\",1482493050,{\"bar\":\"baz\"},{}]")
+//	f.EncodeAndPostData("something_else", time.Unix(1482493050, 0), map[string]string{"bar": "baz"})
+//	assertReceived(t, // t is *testing.T
+//	    conn.waitForNextWrite(true, ""),
+//	    "[\"something_else\",1482493050,{\"bar\":\"baz\"},{}]")
 //
 // In this example, the 1st connection dialing succeeds but the 1st attempt to write the
 // message is discarded. As the logger discards the connection whenever a message
@@ -472,7 +475,10 @@ func TestPostWithTime(t *testing.T) {
 				_ = f.PostWithTime("tag_name", time.Unix(1482493046, 0), map[string]string{"foo": "bar"})
 				_ = f.PostWithTime("tag_name", time.Unix(1482493050, 0), map[string]string{"fluentd": "is awesome"})
 				_ = f.PostWithTime("tag_name", time.Unix(1634263200, 0),
-					struct {Welcome string `msg:"welcome"`; cannot string}{"to use", "see me"})
+					struct {
+						Welcome string `msg:"welcome"`
+						cannot  string
+					}{"to use", "see me"})
 			}()
 
 			conn := d.waitForNextDialing(true, false)
@@ -755,14 +761,61 @@ func TestSyncWriteAfterCloseFails(t *testing.T) {
 		err = f.PostWithTime("tag_name", time.Unix(1482493050, 0), map[string]string{"foo": "buzz"})
 
 		// The event submission must fail,
-		assert.NotEqual(t, err, nil);
+		assert.NotEqual(t, err, nil)
 
 		// and also must keep Fluentd closed.
-		assert.NotEqual(t, f.closed, false);
+		assert.NotEqual(t, f.closed, false)
 	}()
 
 	conn := d.waitForNextDialing(true, false)
 	conn.waitForNextWrite(true, "")
+}
+
+func TestPendingChannelThreadSafety(t *testing.T) {
+	f, err := New(Config{
+		Async:              true,
+		ForceStopAsyncSend: true,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	// Start multiple goroutines posting messages
+	const numGoroutines = 10
+	const messagesPerGoroutine = 100
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < messagesPerGoroutine; j++ {
+				// Post a message
+				err := f.Post("tag", map[string]string{
+					"goroutine": strconv.Itoa(id),
+					"message":   strconv.Itoa(j),
+				})
+
+				// If the logger is closed, we expect an error
+				if err != nil && !strings.Contains(err.Error(), "already closed") {
+					t.Errorf("Unexpected error: %v", err)
+					return
+				}
+
+				// Add a small delay to increase the chance of race conditions
+				time.Sleep(time.Millisecond)
+			}
+		}(i)
+	}
+
+	// Wait a bit to let some messages be posted
+	time.Sleep(10 * time.Millisecond)
+
+	// Close the logger while goroutines are still posting
+	f.Close()
+
+	// Wait for all goroutines to finish
+	wg.Wait()
 }
 
 func Benchmark_PostWithShortMessage(b *testing.B) {
