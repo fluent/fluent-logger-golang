@@ -398,10 +398,7 @@ func (f *Fluent) Close() (err error) {
 		}
 	}
 
-	f.muconn.Lock()
-	f.close()
-	atomic.StoreInt32(&f.closed, 1)
-	f.muconn.Unlock()
+	f.syncClose(true)
 
 	// If ForceStopAsyncSend is true, we shall close the connection before waiting for
 	// run() goroutine to exit to be sure we aren't waiting on ack message that might
@@ -434,6 +431,17 @@ func (f *Fluent) appendBuffer(msg *msgToSend) error {
 		return fmt.Errorf("fluent#appendBuffer: Buffer full, limit %v", f.Config.BufferLimit)
 	}
 	return nil
+}
+
+func (f *Fluent) syncClose(setClosed bool) {
+	f.muconn.Lock()
+	defer f.muconn.Unlock()
+
+	if setClosed {
+		atomic.StoreInt32(&f.closed, 1)
+	}
+
+	f.close()
 }
 
 // close closes the connection. Callers should take care of locking muconn first.
@@ -475,6 +483,17 @@ func (f *Fluent) connect(ctx context.Context) (err error) {
 }
 
 var errIsClosing = errors.New("fluent logger is closing")
+
+func (f *Fluent) syncConnectWithRetry(ctx context.Context) error {
+	f.muconn.Lock()
+	defer f.muconn.Unlock()
+
+	if f.conn == nil {
+		return f.connectWithRetry(ctx)
+	}
+
+	return nil
+}
 
 // Caller should take care of locking muconn first.
 func (f *Fluent) connectWithRetry(ctx context.Context) error {
@@ -575,75 +594,70 @@ func (f *Fluent) writeWithRetry(ctx context.Context, msg *msgToSend) error {
 	return fmt.Errorf("fluent#write: failed to write after %d attempts", f.Config.MaxRetry)
 }
 
+func (f *Fluent) syncWriteMessage(msg *msgToSend) error {
+	f.muconn.RLock()
+	defer f.muconn.RUnlock()
+
+	if f.conn == nil {
+		return fmt.Errorf("connection has been closed before writing to it")
+	}
+
+	t := f.Config.WriteTimeout
+	if time.Duration(0) < t {
+		f.conn.SetWriteDeadline(time.Now().Add(t))
+	} else {
+		f.conn.SetWriteDeadline(time.Time{})
+	}
+
+	_, err := f.conn.Write(msg.data)
+	return err
+}
+
+func (f *Fluent) syncReadAck() (*AckResp, error) {
+	f.muconn.RLock()
+	defer f.muconn.RUnlock()
+
+	resp := &AckResp{}
+	var err error
+	if f.Config.MarshalAsJSON {
+		dec := json.NewDecoder(f.conn)
+		err = dec.Decode(resp)
+	} else {
+		r := msgp.NewReader(f.conn)
+		err = resp.DecodeMsg(r)
+	}
+
+	return resp, err
+}
+
 // write writes the provided msg to fluentd server. Its first return values is
 // a bool indicating whether the write should be retried.
 // This method relies on function literals to execute muconn.Unlock or
 // muconn.RUnlock in deferred calls to ensure the mutex is unlocked even in
 // the case of panic recovering.
 func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
-	closer := func() {
-		f.muconn.Lock()
-		defer f.muconn.Unlock()
-
-		f.close()
-	}
-
-	if err := func() (err error) {
-		f.muconn.Lock()
-		defer f.muconn.Unlock()
-
-		if f.conn == nil {
-			err = f.connectWithRetry(ctx)
-		}
-
-		return err
-	}(); err != nil {
+	if err := f.syncConnectWithRetry(ctx); err != nil {
 		// Here, we don't want to retry the write since connectWithRetry already
 		// retries Config.MaxRetry times to connect.
 		return false, fmt.Errorf("fluent#write: %v", err)
 	}
 
-	if err := func() (err error) {
-		f.muconn.RLock()
-		defer f.muconn.RUnlock()
-
-		if f.conn == nil {
-			return fmt.Errorf("connection has been closed before writing to it")
-		}
-
-		t := f.Config.WriteTimeout
-		if time.Duration(0) < t {
-			f.conn.SetWriteDeadline(time.Now().Add(t))
-		} else {
-			f.conn.SetWriteDeadline(time.Time{})
-		}
-
-		_, err = f.conn.Write(msg.data)
-		return err
-	}(); err != nil {
-		closer()
+	if err := f.syncWriteMessage(msg); err != nil {
+		f.syncClose(false)
 		return true, fmt.Errorf("fluent#write: %v", err)
 	}
 
 	// Acknowledgment check
 	if msg.ack != "" {
-		f.muconn.Lock()
-
-		resp := &AckResp{}
-		var err error
-		if f.Config.MarshalAsJSON {
-			dec := json.NewDecoder(f.conn)
-			err = dec.Decode(resp)
-		} else {
-			r := msgp.NewReader(f.conn)
-			err = resp.DecodeMsg(r)
+		resp, err := f.syncReadAck()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "fluent#write: error reading message response ack %v", err)
+			f.syncClose(false)
+			return true, err
 		}
-		f.muconn.Unlock()
-
-		if err != nil || resp.Ack != msg.ack {
+		if resp.Ack != msg.ack {
 			fmt.Fprintf(os.Stderr, "fluent#write: message ack (%s) doesn't match expected one (%s). Closing connection...", resp.Ack, msg.ack)
-
-			closer()
+			f.syncClose(false)
 			return true, err
 		}
 	}
