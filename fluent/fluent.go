@@ -81,7 +81,7 @@ type Config struct {
 	RequestAck bool `json:"request_ack"`
 
 	// Flag to skip verifying insecure certs on TLS connections
-	TlsInsecureSkipVerify bool `json: "tls_insecure_skip_verify"`
+	TlsInsecureSkipVerify bool `json:"tls_insecure_skip_verify"`
 }
 
 type ErrUnknownNetwork struct {
@@ -280,7 +280,7 @@ func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message interface{}
 	var msg *msgToSend
 	var err error
 	if msg, err = f.EncodeData(tag, tm, message); err != nil {
-		return fmt.Errorf("fluent#EncodeAndPostData: can't convert '%#v' to msgpack:%v", message, err)
+		return fmt.Errorf("fluent#EncodeAndPostData: can't convert '%#v' to msgpack:%w", message, err)
 	}
 	return f.postRawData(msg)
 }
@@ -594,31 +594,46 @@ func (f *Fluent) writeWithRetry(ctx context.Context, msg *msgToSend) error {
 	return fmt.Errorf("fluent#write: failed to write after %d attempts", f.Config.MaxRetry)
 }
 
-func (f *Fluent) syncWriteMessage(msg *msgToSend) error {
-	f.muconn.RLock()
-	defer f.muconn.RUnlock()
+func (f *Fluent) syncWriteMessage(ctx context.Context, msg *msgToSend) error {
+	f.muconn.Lock()
+	defer f.muconn.Unlock()
+
+	// Check if context is cancelled. If it is, we can return early here.
+	if err := ctx.Err(); err != nil {
+		return errIsClosing
+	}
 
 	if f.conn == nil {
-		return fmt.Errorf("connection has been closed before writing to it")
+		return fmt.Errorf("fluent#write: connection has been closed before writing to it")
 	}
 
 	t := f.Config.WriteTimeout
+	var err error
 	if time.Duration(0) < t {
-		f.conn.SetWriteDeadline(time.Now().Add(t))
+		err = f.conn.SetWriteDeadline(time.Now().Add(t))
 	} else {
-		f.conn.SetWriteDeadline(time.Time{})
+		err = f.conn.SetWriteDeadline(time.Time{})
 	}
 
-	_, err := f.conn.Write(msg.data)
+	if err != nil {
+		return fmt.Errorf("fluent#write: failed to set write deadline: %w", err)
+	}
+	_, err = f.conn.Write(msg.data)
 	return err
 }
 
-func (f *Fluent) syncReadAck() (*AckResp, error) {
-	f.muconn.RLock()
-	defer f.muconn.RUnlock()
+func (f *Fluent) syncReadAck(ctx context.Context) (*AckResp, error) {
+	f.muconn.Lock()
+	defer f.muconn.Unlock()
 
 	resp := &AckResp{}
 	var err error
+
+	// Check if context is cancelled. If it is, we can return early here.
+	if err := ctx.Err(); err != nil {
+		return resp, errIsClosing
+	}
+
 	if f.Config.MarshalAsJSON {
 		dec := json.NewDecoder(f.conn)
 		err = dec.Decode(resp)
@@ -639,19 +654,19 @@ func (f *Fluent) write(ctx context.Context, msg *msgToSend) (bool, error) {
 	if err := f.syncConnectWithRetry(ctx); err != nil {
 		// Here, we don't want to retry the write since connectWithRetry already
 		// retries Config.MaxRetry times to connect.
-		return false, fmt.Errorf("fluent#write: %v", err)
+		return false, fmt.Errorf("fluent#write: %w", err)
 	}
 
-	if err := f.syncWriteMessage(msg); err != nil {
+	if err := f.syncWriteMessage(ctx, msg); err != nil {
 		f.syncClose(false)
-		return true, fmt.Errorf("fluent#write: %v", err)
+		return true, fmt.Errorf("fluent#write: %w", err)
 	}
 
 	// Acknowledgment check
 	if msg.ack != "" {
-		resp, err := f.syncReadAck()
+		resp, err := f.syncReadAck(ctx)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "fluent#write: error reading message response ack %v", err)
+			fmt.Fprintf(os.Stderr, "fluent#write: error reading message response ack %v. Closing connection...", err)
 			f.syncClose(false)
 			return true, err
 		}
