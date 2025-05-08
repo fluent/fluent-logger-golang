@@ -265,6 +265,11 @@ func (c *Conn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
+// SetReadDeadline is a nop for our test dialer.
+func (c *Conn) SetReadDeadline(time.Time) error {
+	return nil
+}
+
 func (c *Conn) Close() error {
 	if c.delayNextReadCh != nil {
 		close(c.delayNextReadCh)
@@ -679,6 +684,7 @@ func TestCloseOnFailingAsyncReconnect(t *testing.T) {
 			ForceStopAsyncSend: true,
 			RequestAck:         true,
 		},
+
 		"without RequestAck": {
 			Async:              true,
 			ForceStopAsyncSend: true,

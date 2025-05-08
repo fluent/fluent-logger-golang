@@ -35,12 +35,10 @@ const (
 	defaultMaxRetryWait           = 60000
 	defaultMaxRetry               = 13
 	defaultReconnectWaitIncreRate = 1.5
-	// Default sub-second precision value to false since it is only compatible
-	// with fluentd versions v0.14 and above.
-	defaultSubSecondPrecision = false
 
 	// Default value whether to skip checking insecure certs on TLS connections.
 	defaultTlsInsecureSkipVerify = false
+	defaultReadTimeout           = time.Duration(0) // Read() will not time out
 )
 
 // randomGenerator is used by getUniqueId to generate ack hashes. Its value is replaced
@@ -82,6 +80,9 @@ type Config struct {
 
 	// Flag to skip verifying insecure certs on TLS connections
 	TlsInsecureSkipVerify bool `json:"tls_insecure_skip_verify"`
+
+	// ReadTimeout specifies the timeout on reads. Currently only acks are read.
+	ReadTimeout time.Duration `json:"read_timeout"`
 }
 
 type ErrUnknownNetwork struct {
@@ -152,6 +153,9 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 	}
 	if config.WriteTimeout == 0 {
 		config.WriteTimeout = defaultWriteTimeout
+	}
+	if config.ReadTimeout == 0 {
+		config.ReadTimeout = defaultReadTimeout
 	}
 	if config.BufferLimit == 0 {
 		config.BufferLimit = defaultBufferLimit
@@ -629,9 +633,23 @@ func (f *Fluent) syncReadAck(ctx context.Context) (*AckResp, error) {
 	resp := &AckResp{}
 	var err error
 
+	if f.conn == nil {
+		return resp, fmt.Errorf("fluent#read: connection has been closed before reading from it")
+	}
+
 	// Check if context is cancelled. If it is, we can return early here.
 	if err := ctx.Err(); err != nil {
 		return resp, errIsClosing
+	}
+
+	t := f.Config.ReadTimeout
+	if time.Duration(0) < t {
+		err = f.conn.SetReadDeadline(time.Now().Add(t))
+	} else {
+		err = f.conn.SetReadDeadline(time.Time{})
+	}
+	if err != nil {
+		return resp, fmt.Errorf("fluent#read: failed to set read deadline: %w", err)
 	}
 
 	if f.Config.MarshalAsJSON {
