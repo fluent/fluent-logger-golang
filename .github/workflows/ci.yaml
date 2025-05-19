@@ -15,12 +15,12 @@ jobs:
       matrix:
         os: [ubuntu, macos, windows]
         golang: ['1.23', '1.24']
-        # currently, we cannot run non-x86_64 machines on Github Actions cloud env.
+        # currently, we cannot run non-x86_64 machines on GitHub Actions cloud env.
     runs-on: ${{ matrix.os }}-latest
     name: CI golang ${{ matrix.golang }} on ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.golang }}
       - name: Test
