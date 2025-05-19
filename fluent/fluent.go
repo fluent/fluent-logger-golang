@@ -1,8 +1,11 @@
 package fluent
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,10 +18,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"bytes"
-	"encoding/base64"
-	"encoding/binary"
 
 	"github.com/tinylib/msgp/msgp"
 )
@@ -323,7 +322,7 @@ func (chunk *MessageChunk) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []byte(fmt.Sprintf("[\"%s\",%d,%s,%s]", chunk.message.Tag,
+	return []byte(fmt.Sprintf(`["%s",%d,%s,%s]`, chunk.message.Tag,
 		chunk.message.Time, data, option)), err
 }
 

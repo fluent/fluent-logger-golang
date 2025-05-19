@@ -105,12 +105,12 @@ func newTestDialer() *testDialer {
 //	conn := d.waitForNextDialing(true, false)
 //	assertReceived(t, // t is *testing.T
 //	    conn.waitForNextWrite(true, ""),
-//	    "[\"tag_name\",1482493046,{\"foo\":\"bar\"},{}]")
+//	    `["tag_name",1482493046,{"foo":"bar"},{}]`)
 //
 //	f.EncodeAndPostData("something_else", time.Unix(1482493050, 0), map[string]string{"bar": "baz"})
 //	assertReceived(t, // t is *testing.T
 //	    conn.waitForNextWrite(true, ""),
-//	    "[\"something_else\",1482493050,{\"bar\":\"baz\"},{}]")
+//	    `["something_else",1482493050,{"bar":"baz"},{}]`)
 //
 // In this example, the 1st connection dialing succeeds but the 1st attempt to write the
 // message is discarded. As the logger discards the connection whenever a message
@@ -120,7 +120,7 @@ func newTestDialer() *testDialer {
 // using assertReceived() to make sure the logger encodes the messages properly.
 //
 // Again, the example above is using async mode thus, calls to f and conn are running in
-// the same goroutine. However in sync mode, all calls to f.EncodeAndPostData() as well
+// the same goroutine. However, in sync mode, all calls to f.EncodeAndPostData() as well
 // as the logger initialization shall be placed in a separate goroutine or the code
 // allowing the dialing and writing attempts (eg. waitForNextDialing() & waitForNextWrite())
 // would never be reached.
@@ -311,7 +311,8 @@ func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
 
 	f, err := New(Config{
 		FluentNetwork:    network,
-		FluentSocketPath: socketFile})
+		FluentSocketPath: socketFile,
+	})
 	if err != nil {
 		t.Error(err)
 		return
@@ -324,7 +325,8 @@ func Test_New_itShouldUseUnixDomainSocketIfUnixSocketSpecified(t *testing.T) {
 	network = "unixxxx"
 	fUnknown, err := New(Config{
 		FluentNetwork:    network,
-		FluentSocketPath: socketFile})
+		FluentSocketPath: socketFile,
+	})
 	if _, ok := err.(*ErrUnknownNetwork); !ok {
 		t.Errorf("err type: %T", err)
 	}
@@ -350,12 +352,12 @@ func Test_MarshalAsMsgpack(t *testing.T) {
 	f := &Fluent{Config: Config{}}
 
 	tag := "tag"
-	var data = map[string]string{
+	data := map[string]string{
 		"foo":  "bar",
-		"hoge": "hoge"}
+		"hoge": "hoge",
+	}
 	tm := time.Unix(1267867237, 0)
 	result, err := f.EncodeData(tag, tm, data)
-
 	if err != nil {
 		t.Error(err)
 	}
@@ -383,7 +385,6 @@ func Test_SubSecondPrecision(t *testing.T) {
 	encodedData, err := fluent.EncodeData("tag", timestamp, map[string]string{
 		"foo": "bar",
 	})
-
 	// Assert no encoding errors and that the timestamp has been encoded into
 	// the message as expected.
 	if err != nil {
@@ -402,12 +403,12 @@ func Test_SubSecondPrecision(t *testing.T) {
 func Test_MarshalAsJSON(t *testing.T) {
 	f := &Fluent{Config: Config{MarshalAsJSON: true}}
 
-	var data = map[string]string{
+	data := map[string]string{
 		"foo":  "bar",
-		"hoge": "hoge"}
+		"hoge": "hoge",
+	}
 	tm := time.Unix(1267867237, 0)
 	result, err := f.EncodeData("tag", tm, data)
-
 	if err != nil {
 		t.Error(err)
 	}
@@ -494,14 +495,14 @@ func TestPostWithTime(t *testing.T) {
 			conn := d.waitForNextDialing(true, false)
 			assertReceived(t,
 				conn.waitForNextWrite(true, ""),
-				"[\"acme.tag_name\",1482493046,{\"foo\":\"bar\"},{}]")
+				`["acme.tag_name",1482493046,{"foo":"bar"},{}]`)
 
 			assertReceived(t,
 				conn.waitForNextWrite(true, ""),
-				"[\"acme.tag_name\",1482493050,{\"fluentd\":\"is awesome\"},{}]")
+				`["acme.tag_name",1482493050,{"fluentd":"is awesome"},{}]`)
 			assertReceived(t,
 				conn.waitForNextWrite(true, ""),
-				"[\"acme.tag_name\",1634263200,{\"welcome\":\"to use\"},{}]")
+				`["acme.tag_name",1634263200,{"welcome":"to use"},{}]`)
 		})
 	}
 }
@@ -545,7 +546,7 @@ func TestReconnectAndResendAfterTransientFailure(t *testing.T) {
 			conn := d.waitForNextDialing(true, false)
 			assertReceived(t,
 				conn.waitForNextWrite(true, ""),
-				"[\"tag_name\",1482493046,{\"foo\":\"bar\"},{}]")
+				`["tag_name",1482493046,{"foo":"bar"},{}]`)
 
 			// The next write will fail and the next connection dialing will be dropped
 			// to test if the logger is reconnecting as expected.
@@ -556,7 +557,7 @@ func TestReconnectAndResendAfterTransientFailure(t *testing.T) {
 			conn = d.waitForNextDialing(true, false)
 			assertReceived(t,
 				conn.waitForNextWrite(true, ""),
-				"[\"tag_name\",1482493050,{\"fluentd\":\"is awesome\"},{}]")
+				`["tag_name",1482493050,{"fluentd":"is awesome"},{}]`)
 		})
 	}
 }
