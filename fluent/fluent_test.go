@@ -772,10 +772,14 @@ func TestSyncWriteAfterCloseFails(t *testing.T) {
 		err = f.PostWithTime("tag_name", time.Unix(1482493050, 0), map[string]string{"foo": "buzz"})
 
 		// The event submission must fail,
-		assert.NotEqual(t, err, nil)
+		if err == nil {
+			t.Error("expected an error")
+		}
 
-		// and also must keep Fluentd closed.
-		assert.NotEqual(t, f.closed, false)
+		// and also must keep Fluentd closed. true equals 1.
+		if f.closed != int32(1) {
+			t.Error("expected Fluentd to be kept closed")
+		}
 	}()
 
 	conn := d.waitForNextDialing(true, false)
