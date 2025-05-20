@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.10.0
+
+* Refactor Fluent Logger for Improved Thread Safety and Error Handling
+* Follow the recent Golang module updates
+* Stabilize testing on CI
+* Regenerate msgp generated code to be latest
+
 ## 1.9.0
 
 New features
