@@ -14,9 +14,16 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu, macos, windows]
-        golang: ['1.23', '1.24']
+        # test oldest supported version and currently maintained Go versions.
+        golang: ['1.23.x', 'oldstable', 'stable']
         # currently, we cannot run non-x86_64 machines on GitHub Actions cloud env.
     runs-on: ${{ matrix.os }}-latest
+    env:
+      # Setting GOTOOLCHAIN to local tells go
+      # to use the bundled Go version rather
+      # than fetching the toolchain according to
+      # toolchain directive found in go.mod.
+      GOTOOLCHAIN: local
     name: CI golang ${{ matrix.golang }} on ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
