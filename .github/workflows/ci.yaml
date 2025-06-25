@@ -1,13 +1,6 @@
 name: ci
 
-on:
-  pull_request:
-    branches: '*'
-  push:
-    branches:
-      - master
-      - main
-      - 'release-*'
+on: [push, pull_request]
 
 jobs:
   test:
