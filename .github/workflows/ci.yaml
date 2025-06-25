@@ -20,6 +20,7 @@ jobs:
         golang: ['1.23.x', 'oldstable', 'stable']
         # currently, we cannot run non-x86_64 machines on GitHub Actions cloud env.
     runs-on: ${{ matrix.os }}-latest
+    timeout-minutes: 10 # guardrails timeout for the whole job
     env:
       # Setting GOTOOLCHAIN to local tells go
       # to use the bundled Go version rather
