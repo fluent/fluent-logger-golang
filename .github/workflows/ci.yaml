@@ -1,22 +1,32 @@
 name: ci
 
-on:
-  pull_request:
-    branches: '*'
-  push:
-    branches:
-      - master
-      - main
-      - 'release-*'
+# Default to 'contents: read', which grants actions to read commits.
+#
+# If any permission is set, any permission not included in the list is
+# implicitly set to "none".
+#
+# see https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#permissions
+permissions:
+  contents: read
+
+on: [push, pull_request]
 
 jobs:
   test:
     strategy:
       matrix:
         os: [ubuntu, macos, windows]
-        golang: ['1.23', '1.24']
+        # test oldest supported version and currently maintained Go versions.
+        golang: ['1.23.x', 'oldstable', 'stable']
         # currently, we cannot run non-x86_64 machines on GitHub Actions cloud env.
     runs-on: ${{ matrix.os }}-latest
+    timeout-minutes: 10 # guardrails timeout for the whole job
+    env:
+      # Setting GOTOOLCHAIN to local tells go
+      # to use the bundled Go version rather
+      # than fetching the toolchain according to
+      # toolchain directive found in go.mod.
+      GOTOOLCHAIN: local
     name: CI golang ${{ matrix.golang }} on ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
