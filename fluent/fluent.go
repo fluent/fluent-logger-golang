@@ -38,6 +38,10 @@ const (
 	// Default value whether to skip checking insecure certs on TLS connections.
 	defaultTlsInsecureSkipVerify = false
 	defaultReadTimeout           = time.Duration(0) // Read() will not time out
+
+	// Default values for cert and key pair
+	defaultTlsCertFile = ""
+	defaultTlsKeyFile  = ""
 )
 
 // randomGenerator is used by getUniqueId to generate ack hashes. Its value is replaced
@@ -82,6 +86,10 @@ type Config struct {
 
 	// ReadTimeout specifies the timeout on reads. Currently only acks are read.
 	ReadTimeout time.Duration `json:"read_timeout"`
+
+	// Cert file and key file
+	TlsCertFile string `json: "tls_cert_file"`
+	TlsKeyFile  string `json: "tls_key_file"`
 }
 
 type ErrUnknownNetwork struct {
@@ -170,6 +178,12 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 	}
 	if !config.TlsInsecureSkipVerify {
 		config.TlsInsecureSkipVerify = defaultTlsInsecureSkipVerify
+	}
+	if config.TlsCertFile == "" {
+		config.TlsCertFile = defaultTlsCertFile
+	}
+	if config.TlsKeyFile == "" {
+		config.TlsKeyFile = defaultTlsKeyFile
 	}
 	if config.AsyncConnect {
 		fmt.Fprintf(os.Stderr, "fluent#New: AsyncConnect is now deprecated, please use Async instead")
@@ -465,6 +479,13 @@ func (f *Fluent) connect(ctx context.Context) (err error) {
 			f.Config.FluentHost+":"+strconv.Itoa(f.Config.FluentPort))
 	case "tls":
 		tlsConfig := &tls.Config{InsecureSkipVerify: f.Config.TlsInsecureSkipVerify}
+		if (f.Config.TlsCertFile != "") && (f.Config.TlsKeyFile != "") {
+			cert, err := tls.LoadX509KeyPair(f.Config.TlsCertFile, f.Config.TlsKeyFile)
+			if err != nil {
+				return err
+			}
+			tlsConfig = &tls.Config{Certificates: []tls.Certificate{cert}, InsecureSkipVerify: f.Config.TlsInsecureSkipVerify}
+		}
 		f.conn, err = tls.DialWithDialer(
 			&net.Dialer{Timeout: f.Config.Timeout},
 			"tcp",

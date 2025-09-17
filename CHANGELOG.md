@@ -1,7 +1,9 @@
 # CHANGELOG
 
-## 1.10.0
+## 10.0.1
+* Support x509 Key Pair option
 
+## 1.10.0
 * Refactor Fluent Logger for Improved Thread Safety and Error Handling
 * Follow the recent Golang module updates
 * Stabilize testing on CI
