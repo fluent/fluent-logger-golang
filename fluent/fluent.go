@@ -313,6 +313,10 @@ type MessageChunk struct {
 // Golang default marshaler does not support
 // ["value", "value2", {"key":"value"}] style marshaling.
 // So, it should write JSON marshaler by hand.
+//
+// This assembles the outer Forward-Protocol JSON chunk ["tag", time, record, option]
+// via direct byte-appends instead of fmt.Sprintf — same wire format, avoids the
+// reflection/boxing cost of the format string on every log.
 func (chunk *MessageChunk) MarshalJSON() ([]byte, error) {
 	data, err := json.Marshal(chunk.message.Record)
 	if err != nil {
@@ -322,8 +326,69 @@ func (chunk *MessageChunk) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []byte(fmt.Sprintf(`["%s",%d,%s,%s]`, chunk.message.Tag,
-		chunk.message.Time, data, option)), err
+	buf := make([]byte, 0, len(chunk.message.Tag)+len(data)+len(option)+16)
+	buf = append(buf, '[', '"')
+	buf = append(buf, chunk.message.Tag...)
+	buf = append(buf, '"', ',')
+	buf = strconv.AppendInt(buf, chunk.message.Time, 10)
+	buf = append(buf, ',')
+	buf = append(buf, data...)
+	buf = append(buf, ',')
+	buf = append(buf, option...)
+	buf = append(buf, ']')
+	return buf, nil
+}
+
+// PostRawJSON dispatches a caller-preencoded JSON record to fluentd without going
+// through EncodeData/MessageChunk.MarshalJSON. `record` must already be a valid
+// JSON object (bytes) — the caller is responsible for producing it. This is
+// intended for high-volume log sites that want to bypass the reflection cost of
+// json.Marshal on their record type.
+//
+// PostRawJSON is only supported when Config.MarshalAsJSON is true; msgpack callers
+// should continue to use EncodeAndPostData.
+//
+// The wire bytes assembled are ["tag", timeUnix, record, option] — matching the
+// Forward-Protocol JSON representation produced by EncodeData for the same input.
+func (f *Fluent) PostRawJSON(tag string, tm time.Time, record []byte) error {
+	if !f.Config.MarshalAsJSON {
+		return fmt.Errorf("fluent#PostRawJSON: only supported when MarshalAsJSON=true")
+	}
+
+	msg := &msgToSend{}
+	timeUnix := tm.Unix()
+
+	// option JSON is either {"chunk":"<base64-ack>"} (RequestAck) or {} otherwise.
+	// This matches what EncodeData assembles via json.Marshal(map[string]string).
+	var option []byte
+	if f.Config.RequestAck {
+		var err error
+		msg.ack, err = getUniqueID(timeUnix)
+		if err != nil {
+			return err
+		}
+		option = make([]byte, 0, len(msg.ack)+16)
+		option = append(option, `{"chunk":"`...)
+		option = append(option, msg.ack...) // ack is base64; safe as-is in a JSON string
+		option = append(option, '"', '}')
+	} else {
+		option = []byte("{}")
+	}
+
+	// Assemble ["tag", timeUnix, record, option] via direct byte-appends.
+	buf := make([]byte, 0, len(tag)+len(record)+len(option)+32)
+	buf = append(buf, '[', '"')
+	buf = append(buf, tag...) // matches EncodeData/MessageChunk %s formatting (unescaped)
+	buf = append(buf, '"', ',')
+	buf = strconv.AppendInt(buf, timeUnix, 10)
+	buf = append(buf, ',')
+	buf = append(buf, record...)
+	buf = append(buf, ',')
+	buf = append(buf, option...)
+	buf = append(buf, ']')
+
+	msg.data = buf
+	return f.postRawData(msg)
 }
 
 // getUniqueID returns a base64 encoded unique ID that can be used for chunk/ack
