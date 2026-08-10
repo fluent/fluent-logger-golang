@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/fluent/fluent-logger-golang/fluent"
+	"github.com/bloXroute-Labs/fluent-logger-golang/fluent"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-module github.com/fluent/fluent-logger-golang
+module github.com/bloXroute-Labs/fluent-logger-golang
 
 go 1.23.0
 
