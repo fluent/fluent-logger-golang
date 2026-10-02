@@ -683,6 +683,34 @@ func TestNoPanicOnAsyncMultipleClose(t *testing.T) {
 	f.Close()
 }
 
+func TestNoPanicOnFailingTLSConnect(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+
+	f, _ := New(Config{
+		FluentNetwork: "tls",
+		FluentHost:    "127.0.0.1",
+		FluentPort:    port,
+		Timeout:       50 * time.Millisecond,
+		RetryWait:     1,
+		MaxRetry:      1,
+	})
+	if f == nil {
+		t.Fatal("Expected a logger instance")
+	}
+	defer f.Close()
+
+	for i := 0; i < 2; i++ {
+		if err := f.Post("tag", map[string]string{"log": "msg"}); err == nil {
+			t.Error("Expected an error posting to an unreachable TLS endpoint")
+		}
+	}
+}
+
 func TestCloseOnFailingAsyncReconnect(t *testing.T) {
 	testcases := map[string]Config{
 		"with RequestAck": {
