@@ -11,8 +11,8 @@ import (
 
 //msgp:tuple Entry
 type Entry struct {
-	Time   int64       `msg:"time"`
-	Record interface{} `msg:"record"`
+	Time   int64 `msg:"time"`
+	Record any   `msg:"record"`
 }
 
 //msgp:tuple Forward
@@ -24,17 +24,17 @@ type Forward struct {
 
 //msgp:tuple Message
 type Message struct {
-	Tag    string      `msg:"tag"`
-	Time   int64       `msg:"time"`
-	Record interface{} `msg:"record"`
+	Tag    string `msg:"tag"`
+	Time   int64  `msg:"time"`
+	Record any    `msg:"record"`
 	Option map[string]string
 }
 
 //msgp:tuple MessageExt
 type MessageExt struct {
-	Tag    string      `msg:"tag"`
-	Time   EventTime   `msg:"time,extension"`
-	Record interface{} `msg:"record"`
+	Tag    string    `msg:"tag"`
+	Time   EventTime `msg:"time,extension"`
+	Record any       `msg:"record"`
 	Option map[string]string
 }
 
@@ -98,7 +98,7 @@ func (t *EventTime) MarshalBinaryTo(b []byte) error {
 // UnmarshalBinary is implemented for testing and general completeness.
 func (t *EventTime) UnmarshalBinary(b []byte) error {
 	if len(b) != length {
-		return fmt.Errorf("Invalid EventTime byte length: %d", len(b))
+		return fmt.Errorf("invalid EventTime byte length: %d", len(b))
 	}
 
 	sec := (int32(b[0]) << 24) | (int32(b[1]) << 16)
