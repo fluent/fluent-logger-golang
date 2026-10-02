@@ -98,7 +98,7 @@ func (t *EventTime) MarshalBinaryTo(b []byte) error {
 // UnmarshalBinary is implemented for testing and general completeness.
 func (t *EventTime) UnmarshalBinary(b []byte) error {
 	if len(b) != length {
-		return fmt.Errorf("Invalid EventTime byte length: %d", len(b))
+		return fmt.Errorf("invalid EventTime byte length: %d", len(b))
 	}
 
 	sec := (int32(b[0]) << 24) | (int32(b[1]) << 16)

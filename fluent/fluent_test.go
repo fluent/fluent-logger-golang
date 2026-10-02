@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -421,7 +421,7 @@ func Test_MarshalAsJSON(t *testing.T) {
 }
 
 func TestJsonConfig(t *testing.T) {
-	b, err := ioutil.ReadFile(`testdata/config.json`)
+	b, err := os.ReadFile(`testdata/config.json`)
 	if err != nil {
 		t.Error(err)
 	}
