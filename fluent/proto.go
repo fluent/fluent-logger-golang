@@ -11,8 +11,8 @@ import (
 
 //msgp:tuple Entry
 type Entry struct {
-	Time   int64       `msg:"time"`
-	Record interface{} `msg:"record"`
+	Time   int64 `msg:"time"`
+	Record any   `msg:"record"`
 }
 
 //msgp:tuple Forward
@@ -24,17 +24,17 @@ type Forward struct {
 
 //msgp:tuple Message
 type Message struct {
-	Tag    string      `msg:"tag"`
-	Time   int64       `msg:"time"`
-	Record interface{} `msg:"record"`
+	Tag    string `msg:"tag"`
+	Time   int64  `msg:"time"`
+	Record any    `msg:"record"`
 	Option map[string]string
 }
 
 //msgp:tuple MessageExt
 type MessageExt struct {
-	Tag    string      `msg:"tag"`
-	Time   EventTime   `msg:"time,extension"`
-	Record interface{} `msg:"record"`
+	Tag    string    `msg:"tag"`
+	Time   EventTime `msg:"time,extension"`
+	Record any       `msg:"record"`
 	Option map[string]string
 }
 

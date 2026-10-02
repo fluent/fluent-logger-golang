@@ -226,12 +226,12 @@ func newWithDialer(config Config, d dialer) (f *Fluent, err error) {
 //			"john smith",
 //	}
 //	f.Post("tag_name", structData)
-func (f *Fluent) Post(tag string, message interface{}) error {
+func (f *Fluent) Post(tag string, message any) error {
 	timeNow := time.Now()
 	return f.PostWithTime(tag, timeNow, message)
 }
 
-func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) error {
+func (f *Fluent) PostWithTime(tag string, tm time.Time, message any) error {
 	if len(f.TagPrefix) > 0 {
 		tag = f.TagPrefix + "." + tag
 	}
@@ -245,9 +245,9 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 
 	if msgtype.Kind() == reflect.Struct {
 		// message should be tagged by "codec" or "msg"
-		kv := make(map[string]interface{})
+		kv := make(map[string]any)
 		fields := msgtype.NumField()
-		for i := 0; i < fields; i++ {
+		for i := range fields {
 			field := msgtype.Field(i)
 			value := msg.FieldByIndex(field.Index)
 			// ignore unexported fields
@@ -271,7 +271,7 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 		return errors.New("fluent#PostWithTime: map keys must be strings")
 	}
 
-	kv := make(map[string]interface{})
+	kv := make(map[string]any)
 	for _, k := range msg.MapKeys() {
 		kv[k.String()] = msg.MapIndex(k).Interface()
 	}
@@ -279,7 +279,7 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 	return f.EncodeAndPostData(tag, tm, kv)
 }
 
-func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message interface{}) error {
+func (f *Fluent) EncodeAndPostData(tag string, tm time.Time, message any) error {
 	var msg *msgToSend
 	var err error
 	if msg, err = f.EncodeData(tag, tm, message); err != nil {
@@ -346,7 +346,7 @@ func getUniqueID(timeUnix int64) (string, error) {
 	return buf.String(), nil
 }
 
-func (f *Fluent) EncodeData(tag string, tm time.Time, message interface{}) (msg *msgToSend, err error) {
+func (f *Fluent) EncodeData(tag string, tm time.Time, message any) (msg *msgToSend, err error) {
 	option := make(map[string]string)
 	msg = &msgToSend{}
 	timeUnix := tm.Unix()
@@ -536,10 +536,7 @@ func (f *Fluent) connectWithRetry(ctx context.Context) error {
 				return errIsClosing
 			}
 
-			waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
-			if waitTime > f.Config.MaxRetryWait {
-				waitTime = f.Config.MaxRetryWait
-			}
+			waitTime := min(f.Config.RetryWait*e(defaultReconnectWaitIncreRate, float64(i-1)), f.Config.MaxRetryWait)
 
 			timeout = time.NewTimer(time.Duration(waitTime) * time.Millisecond)
 		case <-ctx.Done():

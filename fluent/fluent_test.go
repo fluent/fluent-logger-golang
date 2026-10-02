@@ -166,7 +166,7 @@ func (d *testDialer) waitForNextDialing(accept bool, delayReads bool) *Conn {
 
 // asserEqual asserts that actual and expected are equivalent, and otherwise
 // marks the test as failed (t.Error). It uses reflect.DeepEqual internally.
-func assertEqual(t *testing.T, actual, expected interface{}) {
+func assertEqual(t *testing.T, actual, expected any) {
 	t.Helper()
 	if !reflect.DeepEqual(actual, expected) {
 		t.Errorf("got: '%+v', expected: '%+v'", actual, expected)
@@ -704,7 +704,7 @@ func TestNoPanicOnFailingTLSConnect(t *testing.T) {
 	}
 	defer f.Close()
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		if err := f.Post("tag", map[string]string{"log": "msg"}); err == nil {
 			t.Error("Expected an error posting to an unreachable TLS endpoint")
 		}
@@ -830,10 +830,10 @@ func TestPendingChannelThreadSafety(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < messagesPerGoroutine; j++ {
+			for j := range messagesPerGoroutine {
 				// Post a message
 				err := f.Post("tag", map[string]string{
 					"goroutine": strconv.Itoa(id),
