@@ -1041,3 +1041,55 @@ func Benchmark_PostWithMapStringAndTime(b *testing.B) {
 		}
 	}
 }
+
+func TestRetryWaitTimeIsCapped(t *testing.T) {
+	const retryWait, maxRetryWait = 1000, 60000
+
+	// The first attempts keep the historical schedule.
+	expected := []int{0, 1000, 1000, 2000, 3000, 5000, 7000, 11000, 17000, 25000, 38000, 57000, 60000}
+	for i, want := range expected {
+		if got := retryWaitTime(retryWait, maxRetryWait, i); got != want {
+			t.Errorf("retryWaitTime(%d, %d, %d) = %d, want %d", retryWait, maxRetryWait, i, got, want)
+		}
+	}
+
+	// Past the point where the exponential factor overflows int, the wait
+	// must stay within [0, maxRetryWait] instead of wrapping around.
+	for i := 0; i < 5000; i++ {
+		got := retryWaitTime(retryWait, maxRetryWait, i)
+		if got < 0 || got > maxRetryWait {
+			t.Fatalf("retryWaitTime(%d, %d, %d) = %d, want a value in [0, %d]", retryWait, maxRetryWait, i, got, maxRetryWait)
+		}
+	}
+}
+
+type failingDialer struct{}
+
+func (failingDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	return nil, errors.New("connection refused")
+}
+
+// Regression test for the back-off overflow: with the default RetryWait and a
+// tiny MaxRetryWait, more than ~92 failed attempts used to arm a timer of
+// hundreds of years, so connectWithRetry never returned.
+func TestConnectWithRetryDoesNotStallAfterManyAttempts(t *testing.T) {
+	f := &Fluent{
+		Config: Config{
+			FluentNetwork: "tcp",
+			FluentHost:    "127.0.0.1",
+			FluentPort:    24224,
+			RetryWait:     1000,
+			MaxRetryWait:  1,
+			MaxRetry:      150,
+		},
+		dialer: failingDialer{},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := f.connectWithRetry(ctx)
+	if err == nil || !strings.Contains(err.Error(), "after 150 retries") {
+		t.Fatalf("connectWithRetry() error = %v, want the retry limit to be reached", err)
+	}
+}

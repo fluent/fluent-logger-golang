@@ -536,11 +536,7 @@ func (f *Fluent) connectWithRetry(ctx context.Context) error {
 				return errIsClosing
 			}
 
-			waitTime := f.Config.RetryWait * e(defaultReconnectWaitIncreRate, float64(i-1))
-			if waitTime > f.Config.MaxRetryWait {
-				waitTime = f.Config.MaxRetryWait
-			}
-
+			waitTime := retryWaitTime(f.Config.RetryWait, f.Config.MaxRetryWait, i)
 			timeout = time.NewTimer(time.Duration(waitTime) * time.Millisecond)
 		case <-ctx.Done():
 			return errIsClosing
@@ -592,8 +588,22 @@ func (f *Fluent) run(ctx context.Context) {
 	}
 }
 
-func e(x, y float64) int {
-	return int(math.Pow(x, y))
+// retryWaitTime returns the back-off (in milliseconds) to wait after the
+// given failed attempt, capped at maxRetryWait.
+//
+// The exponential factor is computed in float64 and compared against the cap
+// before converting back to int: for large attempt counts, math.Pow exceeds
+// the int range and the multiplication by retryWait would overflow, giving a
+// negative value that slipped past the cap and could end up as a timer of
+// hundreds of years.
+func retryWaitTime(retryWait, maxRetryWait, attempt int) int {
+	// math.Trunc keeps the historical schedule, where the factor was
+	// truncated to an int before being multiplied by retryWait.
+	w := float64(retryWait) * math.Trunc(math.Pow(defaultReconnectWaitIncreRate, float64(attempt-1)))
+	if math.IsNaN(w) || w > float64(maxRetryWait) {
+		return maxRetryWait
+	}
+	return int(w)
 }
 
 func (f *Fluent) writeWithRetry(ctx context.Context, msg *msgToSend) error {
