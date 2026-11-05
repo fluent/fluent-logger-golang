@@ -507,6 +507,37 @@ func TestPostWithTime(t *testing.T) {
 	}
 }
 
+func TestPostWithTimeStructTagOptions(t *testing.T) {
+	d := newTestDialer()
+	var f *Fluent
+	defer func() {
+		if f != nil {
+			f.Close()
+		}
+	}()
+
+	go func() {
+		var err error
+		if f, err = newWithDialer(Config{MarshalAsJSON: true}, d); err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+
+		_ = f.PostWithTime("tag_name", time.Unix(1634263200, 0),
+			struct {
+				Name     string `msg:"name,omitempty"`
+				Kind     string `codec:"kind,omitempty"`
+				Password string `msg:"-"`
+				Token    string `codec:"-"`
+				Plain    string `msg:",omitempty"`
+			}{"john", "user", "secret", "secret", "value"})
+	}()
+
+	conn := d.waitForNextDialing(true, false)
+	assertReceived(t,
+		conn.waitForNextWrite(true, ""),
+		`["tag_name",1634263200,{"Plain":"value","kind":"user","name":"john"},{}]`)
+}
+
 func TestReconnectAndResendAfterTransientFailure(t *testing.T) {
 	testcases := map[string]Config{
 		"with Async": {
