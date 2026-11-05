@@ -15,6 +15,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -254,11 +255,18 @@ func (f *Fluent) PostWithTime(tag string, tm time.Time, message interface{}) err
 			if !value.CanInterface() {
 				continue
 			}
+			fieldTag := field.Tag.Get("msg")
+			if fieldTag == "" {
+				fieldTag = field.Tag.Get("codec")
+			}
+			// ignore fields tagged with "-"
+			if fieldTag == "-" {
+				continue
+			}
 			name := field.Name
-			if n1 := field.Tag.Get("msg"); n1 != "" {
-				name = n1
-			} else if n2 := field.Tag.Get("codec"); n2 != "" {
-				name = n2
+			// drop options such as ",omitempty" from the tag
+			if n, _, _ := strings.Cut(fieldTag, ","); n != "" {
+				name = n
 			}
 			kv[name] = value.Interface()
 		}
